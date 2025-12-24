@@ -36,21 +36,21 @@
 
     --radius: 0.25rem;
 
-    /* VS Code specific colors */
-    --vscode-bg: 220 13% 12%;
-    --vscode-sidebar: 220 13% 14%;
-    --vscode-activitybar: 220 13% 10%;
-    --vscode-editor: 220 13% 12%;
-    --vscode-terminal: 220 13% 10%;
-    --vscode-statusbar: 207 90% 40%;
-    --vscode-titlebar: 220 13% 10%;
-    --vscode-tab-active: 220 13% 12%;
-    --vscode-tab-inactive: 220 13% 16%;
-    --vscode-tab-border: 207 90% 40%;
-    --vscode-hover: 220 13% 20%;
-    --vscode-selection: 207 50% 25%;
-    --vscode-line-number: 220 9% 40%;
-    --vscode-line-highlight: 220 13% 16%;
+    /* Pinnacle specific colors */
+    --pinnacle-bg: 220 13% 12%;
+    --pinnacle-sidebar: 220 13% 14%;
+    --pinnacle-activitybar: 220 13% 10%;
+    --pinnacle-editor: 220 13% 12%;
+    --pinnacle-terminal: 220 13% 10%;
+    --pinnacle-statusbar: 207 90% 40%;
+    --pinnacle-titlebar: 220 13% 10%;
+    --pinnacle-tab-active: 220 13% 12%;
+    --pinnacle-tab-inactive: 220 13% 16%;
+    --pinnacle-tab-border: 207 90% 40%;
+    --pinnacle-hover: 220 13% 20%;
+    --pinnacle-selection: 207 50% 25%;
+    --pinnacle-line-number: 220 9% 40%;
+    --pinnacle-line-highlight: 220 13% 16%;
     
     /* Syntax highlighting */
     --syntax-keyword: 207 90% 60%;
@@ -88,21 +88,21 @@
 }
 
 @layer components {
-  .vscode-scrollbar::-webkit-scrollbar {
+  .pinnacle-scrollbar::-webkit-scrollbar {
     width: 10px;
     height: 10px;
   }
 
-  .vscode-scrollbar::-webkit-scrollbar-track {
+  .pinnacle-scrollbar::-webkit-scrollbar-track {
     background: transparent;
   }
 
-  .vscode-scrollbar::-webkit-scrollbar-thumb {
+  .pinnacle-scrollbar::-webkit-scrollbar-thumb {
     background: hsl(var(--muted));
     border-radius: 5px;
   }
 
-  .vscode-scrollbar::-webkit-scrollbar-thumb:hover {
+  .pinnacle-scrollbar::-webkit-scrollbar-thumb:hover {
     background: hsl(var(--muted-foreground));
   }
 
@@ -120,23 +120,23 @@
   }
 
   .menu-item {
-    @apply px-3 py-1.5 text-sm text-foreground hover:bg-[hsl(var(--vscode-hover))] cursor-pointer transition-colors;
+    @apply px-3 py-1.5 text-sm text-foreground hover:bg-[hsl(var(--pinnacle-hover))] cursor-pointer transition-colors;
   }
 
   .file-tree-item {
-    @apply flex items-center gap-2 px-2 py-1 text-sm text-secondary-foreground hover:bg-[hsl(var(--vscode-hover))] cursor-pointer transition-colors;
+    @apply flex items-center gap-2 px-2 py-1 text-sm text-secondary-foreground hover:bg-[hsl(var(--pinnacle-hover))] cursor-pointer transition-colors;
   }
 
   .file-tree-item.active {
-    @apply bg-[hsl(var(--vscode-selection))] text-foreground;
+    @apply bg-[hsl(var(--pinnacle-selection))] text-foreground;
   }
 
   .editor-tab {
-    @apply flex items-center gap-2 px-3 py-2 text-sm border-r border-border bg-[hsl(var(--vscode-tab-inactive))] text-muted-foreground hover:bg-[hsl(var(--vscode-hover))] cursor-pointer transition-colors;
+    @apply flex items-center gap-2 px-3 py-2 text-sm border-r border-border bg-[hsl(var(--pinnacle-tab-inactive))] text-muted-foreground hover:bg-[hsl(var(--pinnacle-hover))] cursor-pointer transition-colors;
   }
 
   .editor-tab.active {
-    @apply bg-[hsl(var(--vscode-tab-active))] text-foreground border-t-2 border-t-primary;
+    @apply bg-[hsl(var(--pinnacle-tab-active))] text-foreground border-t-2 border-t-primary;
   }
 
   .terminal-line {
@@ -148,7 +148,7 @@
   }
 
   .code-line:hover {
-    @apply bg-[hsl(var(--vscode-line-highlight))];
+    @apply bg-[hsl(var(--pinnacle-line-highlight))];
   }
 
   .status-bar-item {

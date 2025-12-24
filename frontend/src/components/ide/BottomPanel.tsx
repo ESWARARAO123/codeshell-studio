@@ -3,7 +3,6 @@ import { Terminal as TerminalIcon, FileOutput, AlertCircle, X, ChevronUp, Chevro
 import { useEditor } from '@/context/EditorContext';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
-import { mockProblems } from '@/data/mockData';
 
 function TerminalTab() {
   const { terminalHistory, addTerminalLine } = useEditor();
@@ -31,7 +30,7 @@ function TerminalTab() {
     } else if (input.startsWith('echo ')) {
       addTerminalLine({ type: 'output', content: input.slice(5) });
     } else if (input === 'pwd') {
-      addTerminalLine({ type: 'output', content: '/home/user/my-vscode-project' });
+      addTerminalLine({ type: 'output', content: '/home/user/my-pinnacle-project' });
     } else if (input === 'node -v') {
       addTerminalLine({ type: 'output', content: 'v20.10.0' });
     } else if (input === 'npm -v') {
@@ -48,8 +47,8 @@ function TerminalTab() {
   };
 
   return (
-    <div className="flex flex-col h-full bg-vscode-terminal" onClick={handleClick}>
-      <ScrollArea ref={scrollRef} className="flex-1 p-2 font-mono text-sm vscode-scrollbar">
+    <div className="flex flex-col h-full bg-pinnacle-terminal" onClick={handleClick}>
+      <ScrollArea ref={scrollRef} className="flex-1 p-2 font-mono text-sm pinnacle-scrollbar">
         {terminalHistory.map((line) => (
           <div
             key={line.id}
@@ -83,9 +82,9 @@ function TerminalTab() {
 
 function OutputTab() {
   return (
-    <div className="flex-1 p-2 bg-vscode-terminal font-mono text-sm">
+    <div className="flex-1 p-2 bg-pinnacle-terminal font-mono text-sm">
       <div className="text-muted-foreground">
-        [2024-01-15 10:30:45] Server started on port 5173
+        [2024-01-15 10:30:45] Server started on port 5174
       </div>
       <div className="text-muted-foreground">
         [2024-01-15 10:30:46] Watching for file changes...
@@ -99,29 +98,10 @@ function OutputTab() {
 
 function ProblemsTab() {
   return (
-    <div className="flex-1 bg-vscode-terminal">
-      <ScrollArea className="h-full vscode-scrollbar">
-        {mockProblems.map((problem) => (
-          <div
-            key={problem.id}
-            className="flex items-start gap-2 px-2 py-1 hover:bg-vscode-hover cursor-pointer text-sm"
-          >
-            <AlertCircle
-              size={14}
-              className={cn(
-                'mt-0.5 flex-shrink-0',
-                problem.type === 'error' ? 'text-destructive' : 'text-yellow-500'
-              )}
-            />
-            <div className="flex-1 min-w-0">
-              <span className="text-foreground">{problem.message}</span>
-              <span className="text-muted-foreground ml-2">
-                [{problem.file}:{problem.line}]
-              </span>
-            </div>
-          </div>
-        ))}
-      </ScrollArea>
+    <div className="flex-1 bg-pinnacle-terminal">
+      <div className="p-4 text-center text-muted-foreground">
+        No problems detected
+      </div>
     </div>
   );
 }
@@ -132,7 +112,7 @@ export function BottomPanel() {
   const tabs = [
     { id: 'terminal' as const, label: 'Terminal', icon: TerminalIcon },
     { id: 'output' as const, label: 'Output', icon: FileOutput },
-    { id: 'problems' as const, label: 'Problems', icon: AlertCircle, count: mockProblems.length },
+    { id: 'problems' as const, label: 'Problems', icon: AlertCircle },
   ];
 
   if (!isBottomPanelOpen) {
@@ -141,7 +121,7 @@ export function BottomPanel() {
 
   return (
     <div className="flex flex-col h-full border-t border-border">
-      <div className="flex items-center justify-between bg-vscode-sidebar px-2">
+      <div className="flex items-center justify-between bg-pinnacle-sidebar px-2">
         <div className="flex">
           {tabs.map((tab) => (
             <button
@@ -156,25 +136,20 @@ export function BottomPanel() {
             >
               <tab.icon size={14} />
               {tab.label}
-              {tab.count !== undefined && (
-                <span className="px-1.5 py-0.5 bg-muted rounded text-[10px]">
-                  {tab.count}
-                </span>
-              )}
             </button>
           ))}
         </div>
         <div className="flex items-center gap-1">
-          <button className="p-1 hover:bg-vscode-hover rounded">
+          <button className="p-1 hover:bg-pinnacle-hover rounded">
             <Plus size={14} className="text-muted-foreground" />
           </button>
-          <button className="p-1 hover:bg-vscode-hover rounded">
+          <button className="p-1 hover:bg-pinnacle-hover rounded">
             <Trash2 size={14} className="text-muted-foreground" />
           </button>
-          <button onClick={toggleBottomPanel} className="p-1 hover:bg-vscode-hover rounded">
+          <button onClick={toggleBottomPanel} className="p-1 hover:bg-pinnacle-hover rounded">
             <ChevronDown size={14} className="text-muted-foreground" />
           </button>
-          <button onClick={toggleBottomPanel} className="p-1 hover:bg-vscode-hover rounded">
+          <button onClick={toggleBottomPanel} className="p-1 hover:bg-pinnacle-hover rounded">
             <X size={14} className="text-muted-foreground" />
           </button>
         </div>

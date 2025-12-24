@@ -13,7 +13,7 @@ function IDEContent() {
   const { isSidebarOpen, isBottomPanelOpen } = useEditor();
 
   return (
-    <div className="h-screen flex flex-col bg-vscode-bg overflow-hidden">
+    <div className="h-screen flex flex-col bg-pinnacle-bg overflow-hidden">
       <MenuBar />
       <div className="flex-1 flex overflow-hidden">
         <ActivityBar />

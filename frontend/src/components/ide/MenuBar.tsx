@@ -90,21 +90,21 @@ const menuItems = [
 
 export function MenuBar() {
   return (
-    <div className="h-8 bg-vscode-titlebar flex items-center px-2 border-b border-border">
+    <div className="h-8 bg-pinnacle-titlebar flex items-center px-2 border-b border-border">
       <Menubar className="border-none bg-transparent h-full">
         {menuItems.map((menu) => (
           <MenubarMenu key={menu.label}>
-            <MenubarTrigger className="text-xs text-muted-foreground hover:text-foreground hover:bg-vscode-hover px-2 py-1 rounded-sm cursor-pointer data-[state=open]:bg-vscode-hover data-[state=open]:text-foreground">
+            <MenubarTrigger className="text-xs text-muted-foreground hover:text-foreground hover:bg-pinnacle-hover px-2 py-1 rounded-sm cursor-pointer data-[state=open]:bg-pinnacle-hover data-[state=open]:text-foreground">
               {menu.label}
             </MenubarTrigger>
-            <MenubarContent className="bg-vscode-sidebar border-border min-w-[200px]">
+            <MenubarContent className="bg-pinnacle-sidebar border-border min-w-[200px]">
               {menu.items.map((item, index) =>
                 item.type === 'separator' ? (
                   <MenubarSeparator key={index} className="bg-border" />
                 ) : (
                   <MenubarItem
                     key={item.label}
-                    className="text-sm text-foreground hover:bg-vscode-selection cursor-pointer focus:bg-vscode-selection focus:text-foreground"
+                    className="text-sm text-foreground hover:bg-pinnacle-selection cursor-pointer focus:bg-pinnacle-selection focus:text-foreground"
                   >
                     {item.label}
                     {item.shortcut && (
@@ -120,7 +120,7 @@ export function MenuBar() {
         ))}
       </Menubar>
       <div className="flex-1" />
-      <span className="text-xs text-muted-foreground">my-vscode-project</span>
+      <span className="text-xs text-muted-foreground">my-pinnacle-project</span>
     </div>
   );
 }

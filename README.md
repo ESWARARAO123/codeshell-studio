@@ -1,73 +1,75 @@
-# Welcome to your Lovable project
+# Pinnacle IDE
 
-## Project info
+A modern web-based IDE with real file system integration.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+## Project Structure
 
-## How can I edit this code?
-
-There are several ways of editing your application.
-
-**Use Lovable**
-
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+```
+codeshell-studio/
+├── frontend/           # React frontend application
+│   ├── src/
+│   ├── public/
+│   ├── package.json
+│   └── ...
+├── index.js           # Express backend server
+├── package.json       # Backend dependencies & scripts
+└── README.md
 ```
 
-**Edit a file directly in GitHub**
+## Setup & Installation
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+### 1. Install Backend Dependencies
+```bash
+npm install
+```
 
-**Use GitHub Codespaces**
+### 2. Install Frontend Dependencies
+```bash
+cd frontend
+npm install
+cd ..
+```
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+### 3. Run the Application
 
-## What technologies are used for this project?
+**Option 1: Run both frontend and backend together**
+```bash
+npm run dev:full
+```
 
-This project is built with:
+**Option 2: Run separately**
+```bash
+# Terminal 1 - Backend server
+npm run dev
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+# Terminal 2 - Frontend
+npm run frontend
+```
 
-## How can I deploy this project?
+## Access Points
 
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
+- **Frontend**: http://localhost:5174 (or the port shown in terminal)
+- **Backend API**: http://localhost:3001
 
-## Can I connect a custom domain to my Lovable project?
+## Features
 
-Yes, you can!
+- Real file system access (read, write, create, delete)
+- Syntax highlighting for multiple languages
+- File explorer with create/delete operations
+- Integrated terminal
+- Tabbed editor with save functionality (Ctrl+S)
+- Resizable panels
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+## File Operations
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+- **Open File**: Click on any file in the explorer
+- **Create File**: Right-click on folder → New File (or use + button)
+- **Create Folder**: Right-click on folder → New Folder
+- **Save File**: Ctrl+S or click the modified indicator (dot) on tab
+- **Delete**: Right-click on file/folder → Delete
+
+## Tech Stack
+
+- **Frontend**: React, TypeScript, Vite, Tailwind CSS, shadcn/ui
+- **Backend**: Node.js, Express.js
+- **File System**: Native Node.js fs module

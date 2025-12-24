@@ -27,12 +27,17 @@ function getFileIcon(fileName: string): { color: string } {
 }
 
 export function EditorTabs() {
-  const { openTabs, activeTabId, setActiveTab, closeTab } = useEditor();
+  const { openTabs, activeTabId, setActiveTab, closeTab, saveFile } = useEditor();
 
   if (openTabs.length === 0) return null;
 
+  const handleSave = async (e: React.MouseEvent, tabId: string) => {
+    e.stopPropagation();
+    await saveFile(tabId);
+  };
+
   return (
-    <div className="flex bg-vscode-sidebar border-b border-border overflow-x-auto">
+    <div className="flex bg-pinnacle-sidebar border-b border-border overflow-x-auto">
       {openTabs.map((tab) => {
         const isActive = tab.id === activeTabId;
         const fileStyle = getFileIcon(tab.fileName);
@@ -46,14 +51,18 @@ export function EditorTabs() {
             <File size={14} className={cn('flex-shrink-0', fileStyle.color)} />
             <span className="truncate max-w-[120px]">{tab.fileName}</span>
             {tab.isModified && (
-              <span className="w-2 h-2 bg-foreground rounded-full flex-shrink-0" />
+              <button
+                onClick={(e) => handleSave(e, tab.id)}
+                className="w-2 h-2 bg-foreground rounded-full flex-shrink-0 hover:bg-primary"
+                title="Save file (Ctrl+S)"
+              />
             )}
             <button
               onClick={(e) => {
                 e.stopPropagation();
                 closeTab(tab.id);
               }}
-              className="p-0.5 rounded opacity-0 group-hover:opacity-100 hover:bg-vscode-hover transition-opacity"
+              className="p-0.5 rounded opacity-0 group-hover:opacity-100 hover:bg-pinnacle-hover transition-opacity"
             >
               <X size={14} />
             </button>

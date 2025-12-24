@@ -1,14 +1,10 @@
 import React from 'react';
 import { GitBranch, AlertCircle, AlertTriangle, Bell, CheckCircle2 } from 'lucide-react';
 import { useEditor } from '@/context/EditorContext';
-import { mockProblems } from '@/data/mockData';
 
 export function StatusBar() {
   const { openTabs, activeTabId, toggleBottomPanel, isBottomPanelOpen } = useEditor();
   const activeTab = openTabs.find(tab => tab.id === activeTabId);
-
-  const errors = mockProblems.filter(p => p.type === 'error').length;
-  const warnings = mockProblems.filter(p => p.type === 'warning').length;
 
   const getLanguageDisplay = (language?: string) => {
     switch (language) {
@@ -30,7 +26,7 @@ export function StatusBar() {
   };
 
   return (
-    <div className="h-6 bg-vscode-statusbar flex items-center justify-between text-primary-foreground text-xs">
+    <div className="h-6 bg-pinnacle-statusbar flex items-center justify-between text-primary-foreground text-xs">
       <div className="flex items-center">
         <div className="status-bar-item">
           <GitBranch size={12} />
@@ -41,9 +37,9 @@ export function StatusBar() {
           className="status-bar-item"
         >
           <AlertCircle size={12} />
-          <span>{errors}</span>
+          <span>0</span>
           <AlertTriangle size={12} className="ml-1" />
-          <span>{warnings}</span>
+          <span>0</span>
         </button>
       </div>
       <div className="flex items-center">
