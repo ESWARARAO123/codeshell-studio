@@ -1,10 +1,10 @@
 import React from 'react';
-import { GitBranch, AlertCircle, AlertTriangle, Bell, CheckCircle2 } from 'lucide-react';
+import { GitBranch, AlertCircle, AlertTriangle, Bell, CheckCircle2, HardDrive, CloudOff } from 'lucide-react';
 import { useEditor } from '@/context/EditorContext';
 import { mockProblems } from '@/data/mockData';
 
 export function StatusBar() {
-  const { openTabs, activeTabId, toggleBottomPanel, isBottomPanelOpen } = useEditor();
+  const { openTabs, activeTabId, toggleBottomPanel, isFileSystemSupported } = useEditor();
   const activeTab = openTabs.find(tab => tab.id === activeTabId);
 
   const errors = mockProblems.filter(p => p.type === 'error').length;
@@ -24,6 +24,8 @@ export function StatusBar() {
         return 'CSS';
       case 'markdown':
         return 'Markdown';
+      case 'python':
+        return 'Python';
       default:
         return 'Plain Text';
     }
@@ -47,11 +49,19 @@ export function StatusBar() {
         </button>
       </div>
       <div className="flex items-center">
+        {isFileSystemSupported ? (
+          <div className="status-bar-item text-green-400">
+            <HardDrive size={12} />
+            <span>Local FS</span>
+          </div>
+        ) : (
+          <div className="status-bar-item text-yellow-400">
+            <CloudOff size={12} />
+            <span>No FS Access</span>
+          </div>
+        )}
         {activeTab && (
           <>
-            <div className="status-bar-item">
-              Ln 1, Col 1
-            </div>
             <div className="status-bar-item">
               Spaces: 2
             </div>
