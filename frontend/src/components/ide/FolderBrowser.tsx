@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Folder, FolderOpen, ChevronRight, ChevronDown } from 'lucide-react';
+import { Folder, FolderOpen, ChevronRight, ChevronDown, File } from 'lucide-react';
 import { fileAPI, FileItem } from '@/lib/fileAPI';
 import { cn } from '@/lib/utils';
 import {
@@ -32,10 +32,13 @@ function FolderItem({ folder, level, onSelect }: FolderItemProps) {
     if (!isExpanded && children.length === 0) {
       setIsLoading(true);
       try {
-        const childFolders = await fileAPI.getFiles(folder.path);
-        setChildren(childFolders.filter(item => item.isDirectory));
+        const childItems = await fileAPI.getFiles(folder.path);
+        // Show both files and folders
+        setChildren(childItems);
       } catch (error) {
-        console.error('Failed to load folders:', error);
+        console.error('Failed to load folder contents:', error);
+        // Show error in UI
+        setChildren([]);
       }
       setIsLoading(false);
     }
@@ -76,13 +79,35 @@ function FolderItem({ folder, level, onSelect }: FolderItemProps) {
       {isExpanded && (
         <div>
           {children.map((child) => (
-            <FolderItem
-              key={child.path}
-              folder={child}
-              level={level + 1}
-              onSelect={onSelect}
-            />
+            child.isDirectory ? (
+              <FolderItem
+                key={child.path}
+                folder={child}
+                level={level + 1}
+                onSelect={onSelect}
+              />
+            ) : (
+              <div
+                key={child.path}
+                className={cn(
+                  'flex items-center gap-2 px-2 py-1 text-sm cursor-pointer hover:bg-pinnacle-hover',
+                  'select-none text-muted-foreground'
+                )}
+                style={{ paddingLeft: `${(level + 1) * 16 + 24}px` }}
+              >
+                <File size={14} />
+                <span className="flex-1 truncate">{child.name}</span>
+              </div>
+            )
           ))}
+          {children.length === 0 && (
+            <div
+              className="text-xs text-muted-foreground px-2 py-1"
+              style={{ paddingLeft: `${(level + 1) * 16 + 24}px` }}
+            >
+              Empty folder
+            </div>
+          )}
         </div>
       )}
     </>
@@ -102,25 +127,34 @@ export function FolderBrowser({ isOpen, onClose, onSelectFolder }: FolderBrowser
   const loadRootFolders = async () => {
     setIsLoading(true);
     try {
-      // Load common root directories
-      const commonPaths = ['C:\\', 'C:\\Users', 'C:\\Users\\Administrator\\Desktop'];
       const folders: FileItem[] = [];
       
-      for (const path of commonPaths) {
-        try {
-          const items = await fileAPI.getFiles(path);
-          const dirItems = items.filter(item => item.isDirectory);
-          folders.push({
-            name: path === 'C:\\' ? 'C: Drive' : path.split('\\').pop() || path,
-            path,
-            isDirectory: true,
-            size: 0,
-            modified: new Date()
-          });
-        } catch (error) {
-          // Skip if path doesn't exist
-        }
-      }
+      // Add the current project directory as the first option
+      folders.push({
+        name: 'Current Project (codeshell-studio)',
+        path: 'c:\\Users\\Administrator\\Desktop\\eswar\\bloom\\xyz\\codeshell-studio',
+        isDirectory: true,
+        size: 0,
+        modified: new Date()
+      });
+      
+      // Add Desktop as a common starting point
+      folders.push({
+        name: 'Desktop',
+        path: 'C:\\Users\\Administrator\\Desktop',
+        isDirectory: true,
+        size: 0,
+        modified: new Date()
+      });
+      
+      // Add Documents folder
+      folders.push({
+        name: 'Documents',
+        path: 'C:\\Users\\Administrator\\Documents',
+        isDirectory: true,
+        size: 0,
+        modified: new Date()
+      });
       
       setRootFolders(folders);
     } catch (error) {
