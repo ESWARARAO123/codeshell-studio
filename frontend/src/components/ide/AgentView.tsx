@@ -20,31 +20,24 @@ interface Message {
 }
 
 export function AgentView() {
-  const { openTabs, activeTabId } = useEditor();
+  const { openTabs, activeTabId, currentWorkspace } = useEditor();
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
       type: 'agent',
-      content: 'Hello! I\'m your AI coding assistant. Select an agent and I\'ll help you with your code.',
+      content: 'Hello! I\'m your AI coding assistant with a three-agent system: Planner → Code Editor → Reviewer. I can safely analyze, edit, and validate your code.',
       timestamp: new Date()
     }
   ]);
   const [input, setInput] = useState('');
-  const [selectedAgent, setSelectedAgent] = useState('review');
 
   const activeTab = openTabs.find(tab => tab.id === activeTabId);
 
-  const agents = [
-    { id: 'review', name: 'Code Review Agent', icon: Search, description: 'Analyze code for issues and improvements' },
-    { id: 'suggestion', name: 'Code Suggestion Agent', icon: Lightbulb, description: 'Get intelligent code suggestions' },
-    { id: 'generation', name: 'Code Generation Agent', icon: Code, description: 'Generate code from descriptions' },
-  ];
-
   const quickActions = [
-    { icon: Search, label: 'Review Code', prompt: 'Review my current code for issues', agent: 'review' },
-    { icon: Lightbulb, label: 'Suggest Improvements', prompt: 'Suggest improvements for this code', agent: 'suggestion' },
-    { icon: Code, label: 'Generate Code', prompt: 'Generate a new function', agent: 'generation' },
-    { icon: Zap, label: 'Optimize', prompt: 'Optimize this code for performance', agent: 'suggestion' },
+    { icon: Search, label: 'Plan & Edit', prompt: 'Analyze my code and suggest improvements with implementation' },
+    { icon: Lightbulb, label: 'Fix Bug', prompt: 'Find and fix the bug in this code' },
+    { icon: Code, label: 'Add Feature', prompt: 'Add a new feature to this code' },
+    { icon: Wrench, label: 'Refactor', prompt: 'Refactor this code for better maintainability' },
   ];
 
   const handleSend = async () => {
@@ -67,7 +60,6 @@ export function AgentView() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: input,
-          agentType: selectedAgent,
           currentFile: activeTab ? {
             path: activeTab.filePath,
             content: activeTab.content,
@@ -95,15 +87,14 @@ export function AgentView() {
       const errorResponse: Message = {
         id: (Date.now() + 1).toString(),
         type: 'agent',
-        content: `❌ **Connection Error**: ${error.message}\n\n💡 **Please check:**\n- Backend server is running on port 3001\n- Ollama service is running\n- CodeLlama model is available`,
+        content: `❌ **Connection Error**: ${error.message}\n\n💡 **Please check:**\n- Backend server is running on port 3001\n- Gemini API key is configured\n- Internet connection is available`,
         timestamp: new Date()
       };
       setMessages(prev => [...prev, errorResponse]);
     }
   };
 
-  const handleQuickAction = (prompt: string, agentType: string) => {
-    setSelectedAgent(agentType);
+  const handleQuickAction = (prompt: string) => {
     setInput(prompt);
   };
 
@@ -111,28 +102,12 @@ export function AgentView() {
     <div className="flex flex-col h-full">
       <div className="flex items-center gap-2 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground border-b border-border">
         <Bot size={16} className="text-primary" />
-        <span>Pinnacle Agent</span>
+        <span>Multi-Agent AI</span>
       </div>
 
       <div className="px-4 py-2 border-b border-border">
-        <div className="text-xs text-muted-foreground mb-2">Select Agent</div>
-        <Select value={selectedAgent} onValueChange={setSelectedAgent}>
-          <SelectTrigger className="w-full bg-pinnacle-editor border-border">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent className="bg-pinnacle-sidebar border-border">
-            {agents.map((agent) => (
-              <SelectItem key={agent.id} value={agent.id} className="text-foreground hover:bg-pinnacle-hover">
-                <div className="flex items-center gap-2">
-                  <agent.icon size={14} />
-                  <span>{agent.name}</span>
-                </div>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
         {activeTab && (
-          <div className="text-xs text-muted-foreground mt-2">
+          <div className="text-xs text-muted-foreground">
             Working on: {activeTab.fileName}
           </div>
         )}
@@ -144,7 +119,7 @@ export function AgentView() {
           {quickActions.map((action) => (
             <button
               key={action.label}
-              onClick={() => handleQuickAction(action.prompt, action.agent)}
+              onClick={() => handleQuickAction(action.prompt)}
               className="flex flex-col items-center gap-1 p-2 rounded hover:bg-pinnacle-hover text-xs"
             >
               <action.icon size={16} className="text-primary" />
@@ -171,12 +146,10 @@ export function AgentView() {
                 {message.type === 'agent' && (
                   <div className="flex items-center gap-2 mb-1">
                     <Bot size={14} className="text-primary" />
-                    <span className="text-xs font-medium">
-                      {agents.find(a => a.id === selectedAgent)?.name || 'Pinnacle Agent'}
-                    </span>
+                    <span className="text-xs font-medium">Multi-Agent AI</span>
                   </div>
                 )}
-                <div>{message.content}</div>
+                <div className="whitespace-pre-wrap font-mono">{message.content}</div>
               </div>
             </div>
           ))}
@@ -188,7 +161,7 @@ export function AgentView() {
           <Input
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder={`Ask ${agents.find(a => a.id === selectedAgent)?.name || 'agent'}...`}
+            placeholder="Ask the AI assistant..."
             className="flex-1 bg-pinnacle-editor border-border"
             onKeyDown={(e) => e.key === 'Enter' && handleSend()}
           />

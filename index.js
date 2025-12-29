@@ -1,15 +1,65 @@
+require('dotenv').config();
 const express = require('express');
 const fs = require('fs').promises;
 const path = require('path');
 const cors = require('cors');
+const { spawn } = require('child_process');
+const WebSocket = require('ws');
+const http = require('http');
+const { detectLanguage, getExecutionCommand } = require('./utils/languageDetector');
 
 const app = express();
+const server = http.createServer(app);
+const wss = new WebSocket.Server({ server });
 const PORT = 3001;
 
 app.use(cors());
 app.use(express.json());
 
 const workspaceRoot = process.cwd();
+
+// Terminal WebSocket handling
+wss.on('connection', (ws) => {
+  console.log('Terminal WebSocket connected');
+  
+  let terminal = null;
+  
+  ws.on('message', (message) => {
+    const data = JSON.parse(message);
+    
+    if (data.type === 'start') {
+      // Start terminal process
+      const shell = process.platform === 'win32' ? 'cmd.exe' : 'bash';
+      terminal = spawn(shell, [], {
+        cwd: workspaceRoot,
+        env: process.env
+      });
+      
+      terminal.stdout.on('data', (data) => {
+        ws.send(JSON.stringify({ type: 'output', data: data.toString() }));
+      });
+      
+      terminal.stderr.on('data', (data) => {
+        ws.send(JSON.stringify({ type: 'output', data: data.toString() }));
+      });
+      
+      terminal.on('close', (code) => {
+        ws.send(JSON.stringify({ type: 'close', code }));
+      });
+      
+      ws.send(JSON.stringify({ type: 'ready' }));
+    } else if (data.type === 'input' && terminal) {
+      terminal.stdin.write(data.data);
+    }
+  });
+  
+  ws.on('close', () => {
+    console.log('Terminal WebSocket disconnected');
+    if (terminal) {
+      terminal.kill();
+    }
+  });
+});
 
 // Get file tree
 app.get('/api/files', async (req, res) => {
@@ -124,69 +174,64 @@ app.delete('/api/file', async (req, res) => {
 // Test endpoint for agent connectivity
 app.get('/api/agent/test', async (req, res) => {
   try {
-    const { OllamaService } = require('./agent/ollamaService');
-    const ollama = new OllamaService();
+    const { GeminiService } = require('./agent/geminiService');
+    const gemini = new GeminiService();
     
-    console.log('Testing Ollama connection...');
-    const isConnected = await ollama.checkConnection();
+    console.log('Testing Gemini connection...');
+    const isConnected = await gemini.checkConnection();
     
     if (isConnected) {
-      // Test a simple generation
-      const testResponse = await ollama.generateResponse('Say hello', 'You are a helpful assistant.');
+      const testResponse = await gemini.generateResponse('Say hello', 'You are a helpful assistant.');
       
       res.json({
         status: 'success',
-        ollama: {
+        gemini: {
           connected: true,
           testResponse: testResponse?.substring(0, 100) + '...',
-          url: 'http://localhost:11434',
-          model: 'codellama:latest'
+          model: 'gemini-1.5-pro'
         },
-        message: 'All systems operational'
+        message: 'Multi-agent system operational'
       });
     } else {
       res.json({
         status: 'warning',
-        ollama: {
+        gemini: {
           connected: false,
-          url: 'http://localhost:11434',
-          model: 'codellama:latest'
+          model: 'gemini-1.5-pro'
         },
-        message: 'Ollama service not accessible'
+        message: 'Gemini API not accessible - check API key'
       });
     }
   } catch (error) {
     res.status(500).json({
       status: 'error',
       error: error.message,
-      message: 'Failed to test agent connectivity'
+      message: 'Failed to test multi-agent connectivity'
     });
   }
 });
 
-// Check Ollama connection status
+// Check Gemini connection status
 app.get('/api/agent/status', async (req, res) => {
   try {
-    const { OllamaService } = require('./agent/ollamaService');
-    const ollama = new OllamaService();
-    const isConnected = await ollama.checkConnection();
+    const { GeminiService } = require('./agent/geminiService');
+    const gemini = new GeminiService();
+    const isConnected = await gemini.checkConnection();
     
     res.json({
-      ollama: {
+      gemini: {
         connected: isConnected,
-        url: 'http://localhost:11434',
-        model: 'codellama:latest'
+        model: 'gemini-1.5-pro'
       },
-      agents: {
-        review: 'Code Review Agent',
-        suggestion: 'Code Suggestion Agent', 
-        generation: 'Code Generation Agent'
+      multiAgent: {
+        enabled: true,
+        agents: ['planner', 'code-editor', 'reviewer']
       }
     });
   } catch (error) {
     res.status(500).json({ 
       error: error.message,
-      ollama: { connected: false }
+      gemini: { connected: false }
     });
   }
 });
@@ -194,90 +239,49 @@ app.get('/api/agent/status', async (req, res) => {
 // Agent processing endpoint
 app.post('/api/agent/process', async (req, res) => {
   try {
-    const { message, agentType, currentFile } = req.body;
-    console.log('Processing agent request:', { agentType, message: message?.substring(0, 50), hasFile: !!currentFile });
+    const { message, currentFile } = req.body;
+    console.log('Processing multi-agent request:', { message: message?.substring(0, 50), hasFile: !!currentFile });
     
     if (!message || !message.trim()) {
       return res.status(400).json({ 
         error: 'Message is required',
-        response: '⚠️ **Error**: Please provide a message for the agent to process.'
+        response: '⚠️ **Error**: Please provide a message for the agents to process.'
       });
     }
     
-    let agent, result;
+    const { MultiAgentOrchestrator } = require('./agent/multiAgentOrchestrator');
+    const orchestrator = new MultiAgentOrchestrator();
     
-    try {
-      switch (agentType) {
-        case 'review':
-          const { CodeReviewAgent } = require('./agent/codeReviewAgent');
-          agent = new CodeReviewAgent();
-          result = await agent.reviewCode(
-            currentFile?.content || '',
-            currentFile?.path || 'untitled',
-            currentFile?.language || 'text',
-            message
-          );
-          break;
-          
-        case 'suggestion':
-          const { CodeSuggestionAgent } = require('./agent/codeSuggestionAgent');
-          agent = new CodeSuggestionAgent();
-          result = await agent.suggestCode(
-            currentFile?.content || '',
-            currentFile?.path || 'untitled',
-            currentFile?.language || 'text',
-            message
-          );
-          break;
-          
-        case 'generation':
-          const { CodeGenerationAgent } = require('./agent/codeGenerationAgent');
-          agent = new CodeGenerationAgent();
-          result = await agent.generateCode(
-            message,
-            currentFile?.path || 'untitled',
-            currentFile?.language || 'javascript',
-            currentFile?.content || '',
-            message
-          );
-          break;
-          
-        default:
-          const { PinnacleAgent } = require('./agent/pinnacleAgent');
-          agent = new PinnacleAgent();
-          result = await agent.processRequest(message, { currentFile });
+    const result = await orchestrator.processRequest(message, { currentFile });
+    
+    // Handle file edits if any
+    if (result.fileEdits && result.fileEdits.length > 0) {
+      for (const edit of result.fileEdits) {
+        try {
+          await orchestrator.editFile(edit.path, edit.content);
+          result.response += `\n\n✅ **File Updated**: ${edit.path}`;
+        } catch (error) {
+          result.response += `\n\n❌ **File Edit Failed**: ${edit.path} - ${error.message}`;
+        }
       }
-    } catch (agentError) {
-      console.error('Agent execution error:', agentError);
-      result = {
-        error: agentError.message,
-        response: `Agent failed to process request: ${agentError.message}`
-      };
     }
     
-    console.log('Agent result type:', typeof result, 'Has response:', !!(result?.response || result?.rawResponse));
-    
-    const formattedResponse = formatAgentResponse(result, agentType);
-    
     res.json({
-      response: formattedResponse,
-      agentType,
-      success: !result?.error,
-      result
+      response: result.response,
+      success: result.success,
+      agentsUsed: result.agentsUsed,
+      fileEdits: result.fileEdits || []
     });
   } catch (error) {
-    console.error('Agent processing error:', error);
+    console.error('Multi-agent processing error:', error);
     
-    // Provide more specific error information
     let errorMessage = error.message;
     let suggestion = '';
     
-    if (error.code === 'ECONNREFUSED' || errorMessage.includes('fetch failed')) {
-      suggestion = 'Please ensure Ollama is running on localhost:11434 with CodeLlama model loaded.';
-    } else if (errorMessage.includes('timeout') || errorMessage.includes('AbortError')) {
-      suggestion = 'The request timed out. CodeLlama might be processing a large request.';
-    } else if (errorMessage.includes('MODULE_NOT_FOUND')) {
-      suggestion = 'Agent module not found. Please check the server setup.';
+    if (errorMessage.includes('GEMINI_API_KEY')) {
+      suggestion = 'Please set your GEMINI_API_KEY environment variable.';
+    } else if (errorMessage.includes('quota') || errorMessage.includes('limit')) {
+      suggestion = 'API quota exceeded. Please check your Gemini API usage.';
     } else {
       suggestion = 'Check server logs for more details.';
     }
@@ -285,90 +289,126 @@ app.post('/api/agent/process', async (req, res) => {
     res.status(500).json({ 
       error: errorMessage,
       suggestion: suggestion,
-      response: `❌ **Agent Error**: ${errorMessage}\n\n💡 **Suggestion**: ${suggestion}`,
+      response: `❌ **Multi-Agent Error**: ${errorMessage}\n\n💡 **Suggestion**: ${suggestion}`,
       success: false
     });
   }
 });
 
-// Helper function to format agent responses
-function formatAgentResponse(result, agentType) {
-  console.log('Formatting response for:', agentType, 'Result type:', typeof result, 'Has result:', !!result);
-  
-  if (!result) {
-    return `⚠️ **${agentType} Agent**: No response received. Please check Ollama connection.`;
-  }
-  
-  if (result.error) {
-    return `❌ **${agentType} Agent Error**\n\n${result.error}\n\n💡 **Quick Fix**: Ensure Ollama is running with CodeLlama model.`;
-  }
-  
-  // Extract the actual response content
-  let response = '';
-  
-  if (typeof result === 'string') {
-    response = result;
-  } else if (result.response) {
-    response = result.response;
-  } else if (result.rawResponse) {
-    response = result.rawResponse;
-  } else if (result.analysis?.summary) {
-    response = result.analysis.summary;
-  } else if (result.suggestions) {
-    response = result.suggestions;
-  } else if (result.generatedCode) {
-    response = result.generatedCode;
-  } else {
-    // Fallback - try to extract any meaningful content
-    response = JSON.stringify(result, null, 2);
-  }
-  
-  // If response is still empty or too short, provide a meaningful fallback
-  if (!response || response.trim().length < 10) {
-    switch (agentType) {
-      case 'review':
-        return `✅ **Code Review Complete**\n\nYour code has been analyzed. No major issues were found, but consider adding:\n- Error handling\n- Input validation\n- Documentation\n\n💡 **Note**: For detailed analysis, ensure Ollama is properly connected.`;
-      case 'suggestion':
-        return `✅ **Code Suggestions Ready**\n\nGeneral improvements you can make:\n- Add type annotations\n- Implement error handling\n- Consider performance optimizations\n- Add unit tests\n\n💡 **Note**: For specific suggestions, ensure Ollama is properly connected.`;
-      case 'generation':
-        return `✅ **Code Generation Complete**\n\nA code template has been prepared. For custom code generation, ensure Ollama is properly connected with CodeLlama model.`;
-      default:
-        return `✅ **Task Complete**: Your request has been processed successfully.`;
+
+
+
+
+// Execute code endpoint with auto-detection
+app.post('/api/execute', async (req, res) => {
+  try {
+    const { code, language, filename } = req.body;
+    
+    // Auto-detect language if filename provided
+    let execConfig;
+    if (filename) {
+      execConfig = getExecutionCommand(filename);
+      if (!execConfig.canExecute) {
+        return res.json({
+          success: false,
+          output: execConfig.reason
+        });
+      }
+    } else {
+      // Fallback to manual language detection
+      switch (language) {
+        case 'python':
+          execConfig = { runner: 'python', args: ['-c'], language: 'python' };
+          break;
+        case 'javascript':
+          execConfig = { runner: 'node', args: ['-e'], language: 'javascript' };
+          break;
+        default:
+          return res.status(400).json({ error: 'Unsupported language or no filename provided' });
+      }
     }
+    
+    let command = execConfig.runner;
+    let args;
+    
+    if (filename && !execConfig.compile) {
+      // Direct execution
+      args = [...execConfig.args];
+      if (!execConfig.args.includes(filename)) {
+        args.push(filename);
+      }
+    } else if (execConfig.compile) {
+      // Compilation required
+      return res.json({
+        success: false,
+        output: `${execConfig.language} requires compilation. Use terminal: ${command} ${filename}`
+      });
+    } else {
+      // Code string execution
+      args = [...execConfig.args, code];
+    }
+    
+    const child = spawn(command, args, {
+      cwd: workspaceRoot,
+      timeout: 10000
+    });
+    
+    let output = '';
+    let error = '';
+    
+    child.stdout.on('data', (data) => {
+      output += data.toString();
+    });
+    
+    child.stderr.on('data', (data) => {
+      error += data.toString();
+    });
+    
+    child.on('close', (code) => {
+      res.json({
+        success: code === 0,
+        output: output || error,
+        exitCode: code,
+        detectedLanguage: execConfig.language
+      });
+    });
+    
+    child.on('error', (err) => {
+      res.json({
+        success: false,
+        output: `Execution error: ${err.message}`,
+        exitCode: -1
+      });
+    });
+    
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
+
+// Language detection endpoint
+app.get('/api/detect-language', (req, res) => {
+  const { filename } = req.query;
+  if (!filename) {
+    return res.status(400).json({ error: 'Filename is required' });
   }
   
-  return response;
-}
-
-// Agent endpoints
-app.post('/api/agent/chat', async (req, res) => {
-  try {
-    const { message, context } = req.body;
-    const { PinnacleAgent } = require('./agent/pinnacleAgent');
-    
-    const agent = new PinnacleAgent();
-    const response = await agent.processRequest(message, context);
-    
-    res.json(response);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
+  const config = detectLanguage(filename);
+  const execConfig = getExecutionCommand(filename);
+  
+  res.json({
+    filename,
+    language: config.language,
+    canExecute: execConfig.canExecute,
+    runner: config.runner,
+    needsCompilation: config.compile || false,
+    reason: execConfig.reason
+  });
 });
 
-app.post('/api/agent/generate', async (req, res) => {
-  try {
-    const { prompt, language } = req.body;
-    const { PinnacleAgent } = require('./agent/pinnacleAgent');
-    
-    const agent = new PinnacleAgent();
-    const response = await agent.generateCode(prompt, language);
-    
-    res.json(response);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
+  console.log(`WebSocket server running on ws://localhost:${PORT}`);
 });

@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pinnacle IDE Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #1a1a1a;
+            color: white;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            text-align: center;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .success { background: #2d5a2d; }
+        .error { background: #5a2d2d; }
+        button {
+            background: #007acc;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #005a9e;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 Pinnacle IDE Status</h1>
+        
+        <div id="backend-status" class="status">
+            Checking backend connection...
+        </div>
+        
+        <div id="frontend-status" class="status success">
+            ✅ Frontend is working!
+        </div>
+        
+        <div>
+            <button onclick="testBackend()">Test Backend</button>
+            <button onclick="testAgents()">Test Agents</button>
+            <button onclick="window.location.href='http://localhost:5174'">Go to IDE</button>
+        </div>
+        
+        <div id="test-results"></div>
+    </div>
+
+    <script>
+        async function testBackend() {
+            const status = document.getElementById('backend-status');
+            const results = document.getElementById('test-results');
+            
+            try {
+                const response = await fetch('http://localhost:3001/api/agent/status');
+                const data = await response.json();
+                
+                status.className = 'status success';
+                status.innerHTML = '✅ Backend connected successfully!';
+                
+                results.innerHTML = `
+                    <h3>Backend Status:</h3>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                `;
+            } catch (error) {
+                status.className = 'status error';
+                status.innerHTML = '❌ Backend connection failed: ' + error.message;
+                
+                results.innerHTML = `
+                    <h3>Error:</h3>
+                    <p>Make sure the backend server is running on port 3001</p>
+                    <p>Run: <code>npm run dev</code> in the main directory</p>
+                `;
+            }
+        }
+        
+        async function testAgents() {
+            const results = document.getElementById('test-results');
+            
+            try {
+                const response = await fetch('http://localhost:3001/api/agent/test');
+                const data = await response.json();
+                
+                results.innerHTML = `
+                    <h3>Agent Test Results:</h3>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                `;
+            } catch (error) {
+                results.innerHTML = `
+                    <h3>Agent Test Failed:</h3>
+                    <p>${error.message}</p>
+                `;
+            }
+        }
+        
+        // Auto-test backend on load
+        window.onload = testBackend;
+    </script>
+</body>
+</html>
