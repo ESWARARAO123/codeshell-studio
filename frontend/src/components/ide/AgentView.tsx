@@ -16,20 +16,20 @@ export function AgentView() {
     {
       id: '1',
       type: 'agent',
-      content: 'Hello! I\'m Pinnacle Agent, your AI coding assistant. How can I help you today?',
+      content: 'Hello! I\'m the Verilog Code Generator. I can create Verilog modules for digital components like full adders, multiplexers, counters, and more using Ollama.',
       timestamp: new Date()
     }
   ]);
   const [input, setInput] = useState('');
 
   const quickActions = [
-    { icon: Code, label: 'Generate Code', prompt: 'Generate a React component' },
-    { icon: HelpCircle, label: 'Explain Code', prompt: 'Explain this code to me' },
-    { icon: Zap, label: 'Fix Bugs', prompt: 'Help me fix bugs in my code' },
-    { icon: Lightbulb, label: 'Optimize', prompt: 'Optimize my code performance' },
+    { icon: Code, label: 'Full Adder', prompt: 'Generate a full adder' },
+    { icon: HelpCircle, label: 'Half Adder', prompt: 'Generate a half adder' },
+    { icon: Zap, label: 'Multiplexer', prompt: 'Generate a 4-to-1 multiplexer' },
+    { icon: Lightbulb, label: 'Counter', prompt: 'Generate an 8-bit counter' },
   ];
 
-  const handleSend = () => {
+  const handleSend = async () => {
     if (!input.trim()) return;
 
     const userMessage: Message = {
@@ -39,15 +39,40 @@ export function AgentView() {
       timestamp: new Date()
     };
 
-    const agentResponse: Message = {
-      id: (Date.now() + 1).toString(),
-      type: 'agent',
-      content: `I understand you want help with: "${input}". I'm here to assist you with code generation, debugging, and optimization. What specific task would you like me to help with?`,
-      timestamp: new Date()
-    };
-
-    setMessages(prev => [...prev, userMessage, agentResponse]);
+    setMessages(prev => [...prev, userMessage]);
     setInput('');
+
+    try {
+      const response = await fetch('http://localhost:3001/api/agent/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message: input,
+          context: {}
+        })
+      });
+
+      const data = await response.json();
+      
+      const agentResponse: Message = {
+        id: (Date.now() + 1).toString(),
+        type: 'agent',
+        content: data.code ? `${data.response}\n\n\`\`\`verilog\n${data.code}\n\`\`\`` : data.response,
+        timestamp: new Date()
+      };
+
+      setMessages(prev => [...prev, agentResponse]);
+    } catch (error) {
+      const errorResponse: Message = {
+        id: (Date.now() + 1).toString(),
+        type: 'agent',
+        content: '❌ **Connection Error**: Failed to connect to backend\n\n💡 **Please check:**\n- Backend server is running on port 3001\n- Ollama is running with qwen2.5-coder:3b model\n- Network connection is available',
+        timestamp: new Date()
+      };
+      setMessages(prev => [...prev, errorResponse]);
+    }
   };
 
   const handleQuickAction = (prompt: string) => {
@@ -58,7 +83,7 @@ export function AgentView() {
     <div className="flex flex-col h-full">
       <div className="flex items-center gap-2 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground border-b border-border">
         <Bot size={16} className="text-primary" />
-        <span>Pinnacle Agent</span>
+        <span>Verilog Generator</span>
       </div>
 
       <div className="px-4 py-2">
