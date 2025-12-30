@@ -17,20 +17,16 @@ class PinnacleAgent {
 
 
   async generateResponse(userRequest, context = {}) {
-    const systemPrompt = "OUTPUT ONLY VERILOG CODE. NO TEXT. NO EXPLANATIONS. NO MARKDOWN. START WITH 'module' END WITH 'endmodule'. NOTHING ELSE.";
-    const fullPrompt = `${systemPrompt}\n\n${userRequest}`;
-    
     try {
-      console.log('Sending request to Ollama:', { model: this.model, prompt: fullPrompt });
+      console.log('Sending request to Ollama:', { model: this.model, prompt: userRequest });
       
       const response = await axios.post(this.ollamaUrl, {
         model: this.model,
-        prompt: fullPrompt,
+        prompt: userRequest,
         stream: false,
         options: {
-          temperature: 0.0,
-          top_p: 0.5,
-          stop: ["```", "###", "Explanation", "Usage", "Example", "How it", "This", "The", "In this", "Below is"]
+          temperature: 0.1,
+          top_p: 0.9
         }
       }, {
         timeout: 120000
@@ -42,44 +38,9 @@ class PinnacleAgent {
         throw new Error('Invalid response from Ollama');
       }
       
-      // Aggressive cleaning of the response
-      let cleanedResponse = response.data.response.trim();
-      
-      // Remove everything before the first 'module'
-      const moduleStart = cleanedResponse.toLowerCase().indexOf('module');
-      if (moduleStart !== -1) {
-        cleanedResponse = cleanedResponse.substring(moduleStart);
-      }
-      
-      // Find the last 'endmodule' and cut everything after it
-      const endmoduleEnd = cleanedResponse.toLowerCase().lastIndexOf('endmodule') + 9;
-      if (endmoduleEnd > 8) {
-        cleanedResponse = cleanedResponse.substring(0, endmoduleEnd);
-      }
-      
-      // Remove markdown and common explanation starters
-      cleanedResponse = cleanedResponse
-        .replace(/```verilog/gi, '')
-        .replace(/```/g, '')
-        .replace(/^.*?(?=module)/i, '')
-        .replace(/(?<=endmodule)[\s\S]*/i, '')
-        .replace(/^(Certainly!|Below is|Here is|This is|The following)[\s\S]*?(?=module)/gi, '')
-        .replace(/### [\s\S]*$/gi, '')
-        .replace(/\*\*[^*]*\*\*/g, '')
-        .trim();
-      
-      // If still no module found, return error
-      if (!cleanedResponse.toLowerCase().includes('module')) {
-        return {
-          response: "Error: Could not generate valid Verilog code. Please try rephrasing your request.",
-          error: "No module found in response"
-        };
-      }
-      
       return {
-        response: cleanedResponse,
-        generated: true,
-        language: 'verilog'
+        response: response.data.response,
+        generated: true
       };
     } catch (error) {
       console.error('Ollama error:', error);

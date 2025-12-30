@@ -122,9 +122,64 @@ export function AgentView() {
                     <span className="text-xs font-medium">Pinnacle Agent</span>
                   </div>
                 )}
-                {message.content.includes('module') && message.content.includes('endmodule') ? (
-                  <div className="bg-gray-900 text-green-400 p-3 rounded font-mono text-sm whitespace-pre-wrap overflow-x-auto">
-                    {message.content}
+                {message.type === 'agent' ? (
+                  <div className="space-y-2">
+                    {(() => {
+                      const content = message.content;
+                      const parts = [];
+                      let currentIndex = 0;
+                      
+                      // Find all code blocks (module...endmodule)
+                      const moduleRegex = /module[\s\S]*?endmodule/gi;
+                      let match;
+                      
+                      while ((match = moduleRegex.exec(content)) !== null) {
+                        // Add text before code block
+                        if (match.index > currentIndex) {
+                          const preText = content.substring(currentIndex, match.index).trim();
+                          if (preText) {
+                            parts.push(
+                              <div key={`pre-${match.index}`} className="whitespace-pre-wrap text-sm">
+                                {preText}
+                              </div>
+                            );
+                          }
+                        }
+                        
+                        // Add code block
+                        parts.push(
+                          <div key={`code-${match.index}`} className="bg-gray-900 text-green-400 p-3 rounded font-mono text-sm whitespace-pre-wrap overflow-x-auto">
+                            {match[0]}
+                          </div>
+                        );
+                        
+                        currentIndex = match.index + match[0].length;
+                      }
+                      
+                      // Add remaining text after last code block
+                      if (currentIndex < content.length) {
+                        const postText = content.substring(currentIndex).trim();
+                        if (postText) {
+                          parts.push(
+                            <div key={`post-${currentIndex}`} className="whitespace-pre-wrap text-sm">
+                              {postText}
+                            </div>
+                          );
+                        }
+                      }
+                      
+                      // If no code blocks found, display as normal text
+                      if (parts.length === 0) {
+                        parts.push(
+                          <div key="normal" className="whitespace-pre-wrap text-sm">
+                            {content}
+                          </div>
+                        );
+                      }
+                      
+                      return parts;
+                    })()
+                    }
                   </div>
                 ) : (
                   <div className="whitespace-pre-wrap font-mono text-sm">{message.content}</div>
