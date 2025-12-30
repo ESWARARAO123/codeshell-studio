@@ -59,7 +59,7 @@ export function AgentView() {
       const agentResponse: Message = {
         id: (Date.now() + 1).toString(),
         type: 'agent',
-        content: data.code ? `${data.response}\n\n\`\`\`verilog\n${data.code}\n\`\`\`` : data.response,
+        content: data.response,
         timestamp: new Date()
       };
 
@@ -122,7 +122,13 @@ export function AgentView() {
                     <span className="text-xs font-medium">Pinnacle Agent</span>
                   </div>
                 )}
-                <div>{message.content}</div>
+                {message.content.includes('module') && message.content.includes('endmodule') ? (
+                  <div className="bg-gray-900 text-green-400 p-3 rounded font-mono text-sm whitespace-pre-wrap overflow-x-auto">
+                    {message.content}
+                  </div>
+                ) : (
+                  <div className="whitespace-pre-wrap font-mono text-sm">{message.content}</div>
+                )}
               </div>
             </div>
           ))}
