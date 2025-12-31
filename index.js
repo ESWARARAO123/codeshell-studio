@@ -37,28 +37,59 @@ app.get('/api/files', async (req, res) => {
   try {
     const dirPath = req.query.path;
     if (!dirPath) {
-      return res.json([]);
+      // Return common root directories for Windows
+      const rootDirs = [];
+      
+      // Try to access common directories
+      const commonPaths = [
+        { name: 'Current Project', path: process.cwd() },
+        { name: 'Desktop', path: 'C:\\Users\\Administrator\\Desktop' },
+        { name: 'Documents', path: 'C:\\Users\\Administrator\\Documents' },
+        { name: 'C: Drive', path: 'C:\\' }
+      ];
+      
+      for (const dir of commonPaths) {
+        try {
+          await fs.access(dir.path);
+          rootDirs.push({
+            name: dir.name,
+            path: dir.path,
+            isDirectory: true,
+            size: 0,
+            modified: new Date()
+          });
+        } catch (error) {
+          // Skip if directory doesn't exist or no access
+        }
+      }
+      
+      return res.json(rootDirs);
     }
     
     const items = await fs.readdir(dirPath, { withFileTypes: true });
     
     const files = await Promise.all(
       items.map(async (item) => {
-        const fullPath = path.join(dirPath, item.name);
-        const stats = await fs.stat(fullPath);
-        
-        return {
-          name: item.name,
-          path: fullPath,
-          isDirectory: item.isDirectory(),
-          size: stats.size,
-          modified: stats.mtime
-        };
+        try {
+          const fullPath = path.join(dirPath, item.name);
+          const stats = await fs.stat(fullPath);
+          
+          return {
+            name: item.name,
+            path: fullPath,
+            isDirectory: item.isDirectory(),
+            size: stats.size,
+            modified: stats.mtime
+          };
+        } catch (error) {
+          return null;
+        }
       })
     );
     
-    res.json(files.filter(f => !f.name.startsWith('.')));
+    res.json(files.filter(f => f && !f.name.startsWith('.')));
   } catch (error) {
+    console.error('File API error:', error);
     res.status(500).json({ error: error.message });
   }
 });

@@ -1,8 +1,21 @@
-import React, { useState } from 'react';
-import { Bot, Send, Lightbulb, Code, HelpCircle, Zap } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Bot, Send, Plus, ChevronDown, X } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+
+interface ChatSession {
+  id: string;
+  title: string;
+  messages: Message[];
+  createdAt: Date;
+}
 
 interface Message {
   id: string;
@@ -11,17 +24,44 @@ interface Message {
   timestamp: Date;
 }
 
+// Global chat sessions storage
+let globalChatSessions: ChatSession[] = [
+  {
+    id: '1',
+    title: 'New Chat',
+    createdAt: new Date(),
+    messages: [
+      {
+        id: '1',
+        type: 'agent',
+        content: 'Hello! I\'m the Verilog Code Generator. I can create Verilog modules for digital components like full adders, multiplexers, counters, and more using Ollama.',
+        timestamp: new Date()
+      }
+    ]
+  }
+];
+let currentSessionId = '1';
+
 export function AgentView() {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: '1',
-      type: 'agent',
-      content: 'Hello! I\'m the Verilog Code Generator. I can create Verilog modules for digital components like full adders, multiplexers, counters, and more using Ollama.',
-      timestamp: new Date()
-    }
-  ]);
+  const [chatSessions, setChatSessions] = useState<ChatSession[]>(globalChatSessions);
+  const [activeSessionId, setActiveSessionId] = useState<string>(currentSessionId);
   const [input, setInput] = useState('');
   const [ragStatus, setRagStatus] = useState<{agent_ready: boolean, rag_ready: boolean} | null>(null);
+
+  const activeSession = chatSessions.find(session => session.id === activeSessionId);
+  const messages = activeSession?.messages || [];
+
+  // Sync with global sessions
+  useEffect(() => {
+    setChatSessions([...globalChatSessions]);
+    setActiveSessionId(currentSessionId);
+  }, []);
+
+  // Update global sessions when local sessions change
+  useEffect(() => {
+    globalChatSessions = [...chatSessions];
+    currentSessionId = activeSessionId;
+  }, [chatSessions, activeSessionId]);
 
   // Check RAG status on component mount
   React.useEffect(() => {
@@ -42,8 +82,54 @@ export function AgentView() {
 
 
 
+  const handleNewChat = () => {
+    const newSessionId = Date.now().toString();
+    const newSession: ChatSession = {
+      id: newSessionId,
+      title: 'New Chat',
+      createdAt: new Date(),
+      messages: [
+        {
+          id: '1',
+          type: 'agent',
+          content: 'Hello! I\'m the Verilog Code Generator. I can create Verilog modules for digital components like full adders, multiplexers, counters, and more using Ollama.',
+          timestamp: new Date()
+        }
+      ]
+    };
+    setChatSessions(prev => [newSession, ...prev]);
+    setActiveSessionId(newSessionId);
+  };
+
+  const handleDeleteSession = (sessionId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (chatSessions.length === 1) return; // Keep at least one session
+    
+    setChatSessions(prev => prev.filter(session => session.id !== sessionId));
+    if (activeSessionId === sessionId) {
+      const remainingSessions = chatSessions.filter(session => session.id !== sessionId);
+      setActiveSessionId(remainingSessions[0]?.id || '');
+    }
+  };
+
+  const handleSelectSession = (sessionId: string) => {
+    setActiveSessionId(sessionId);
+  };
+
+  const updateSessionTitle = (sessionId: string, firstUserMessage: string) => {
+    const title = firstUserMessage.length > 30 
+      ? firstUserMessage.substring(0, 30) + '...' 
+      : firstUserMessage;
+    
+    setChatSessions(prev => prev.map(session => 
+      session.id === sessionId 
+        ? { ...session, title }
+        : session
+    ));
+  };
+
   const handleSend = async () => {
-    if (!input.trim()) return;
+    if (!input.trim() || !activeSession) return;
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -52,7 +138,18 @@ export function AgentView() {
       timestamp: new Date()
     };
 
-    setMessages(prev => [...prev, userMessage]);
+    // Update session title with first user message
+    if (activeSession.title === 'New Chat' && activeSession.messages.length === 1) {
+      updateSessionTitle(activeSessionId, input);
+    }
+
+    // Add user message to active session
+    setChatSessions(prev => prev.map(session => 
+      session.id === activeSessionId 
+        ? { ...session, messages: [...session.messages, userMessage] }
+        : session
+    ));
+    
     setInput('');
 
     try {
@@ -76,7 +173,12 @@ export function AgentView() {
         timestamp: new Date()
       };
 
-      setMessages(prev => [...prev, agentResponse]);
+      // Add agent response to active session
+      setChatSessions(prev => prev.map(session => 
+        session.id === activeSessionId 
+          ? { ...session, messages: [...session.messages, agentResponse] }
+          : session
+      ));
     } catch (error) {
       const errorResponse: Message = {
         id: (Date.now() + 1).toString(),
@@ -84,7 +186,12 @@ export function AgentView() {
         content: '❌ **Connection Error**: Failed to connect to backend\n\n💡 **Please check:**\n- Backend server is running on port 3010\n- Ollama is running with qwen2.5-coder:3b model\n- Network connection is available',
         timestamp: new Date()
       };
-      setMessages(prev => [...prev, errorResponse]);
+      
+      setChatSessions(prev => prev.map(session => 
+        session.id === activeSessionId 
+          ? { ...session, messages: [...session.messages, errorResponse] }
+          : session
+      ));
     }
   };
 
@@ -95,16 +202,51 @@ export function AgentView() {
       <div className="flex items-center gap-2 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground border-b border-border">
         <Bot size={16} className="text-primary" />
         <span>Verilog Generator</span>
-        {ragStatus && (
-          <div className="ml-auto flex items-center gap-1">
-            <div className={`w-2 h-2 rounded-full ${
-              ragStatus.rag_ready ? 'bg-green-500' : 'bg-yellow-500'
-            }`} />
-            <span className="text-xs">
-              {ragStatus.rag_ready ? 'RAG Ready' : 'Basic Mode'}
-            </span>
-          </div>
-        )}
+        <div className="ml-auto flex items-center gap-2">
+          <Button
+            onClick={handleNewChat}
+            size="sm"
+            variant="ghost"
+            className="h-6 px-2 text-xs hover:bg-pinnacle-hover"
+          >
+            <Plus size={12} className="mr-1" />
+            New Chat
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-6 px-2 text-xs hover:bg-pinnacle-hover"
+              >
+                <ChevronDown size={12} />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="bg-pinnacle-sidebar border-border max-h-60 overflow-y-auto">
+              {chatSessions.map((session) => (
+                <DropdownMenuItem
+                  key={session.id}
+                  onClick={() => handleSelectSession(session.id)}
+                  className={`text-foreground hover:bg-pinnacle-hover cursor-pointer flex items-center justify-between group ${
+                    session.id === activeSessionId ? 'bg-pinnacle-hover' : ''
+                  }`}
+                >
+                  <span className="flex-1 truncate pr-2">{session.title}</span>
+                  {chatSessions.length > 1 && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={(e) => handleDeleteSession(session.id, e)}
+                      className="h-4 w-4 p-0 opacity-0 group-hover:opacity-100 hover:bg-red-500/20"
+                    >
+                      <X size={10} className="text-red-400" />
+                    </Button>
+                  )}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
 
 

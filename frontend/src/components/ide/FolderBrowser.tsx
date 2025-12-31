@@ -102,29 +102,19 @@ export function FolderBrowser({ isOpen, onClose, onSelectFolder }: FolderBrowser
   const loadRootFolders = async () => {
     setIsLoading(true);
     try {
-      // Load common root directories
-      const commonPaths = ['C:\\', 'C:\\Users', 'C:\\Users\\Administrator\\Desktop'];
-      const folders: FileItem[] = [];
-      
-      for (const path of commonPaths) {
-        try {
-          const items = await fileAPI.getFiles(path);
-          const dirItems = items.filter(item => item.isDirectory);
-          folders.push({
-            name: path === 'C:\\' ? 'C: Drive' : path.split('\\').pop() || path,
-            path,
-            isDirectory: true,
-            size: 0,
-            modified: new Date()
-          });
-        } catch (error) {
-          // Skip if path doesn't exist
-        }
-      }
-      
+      // Load directories from backend API
+      const folders = await fileAPI.getFiles();
       setRootFolders(folders);
     } catch (error) {
       console.error('Failed to load root folders:', error);
+      // Fallback to current directory
+      setRootFolders([{
+        name: 'Current Directory',
+        path: '.',
+        isDirectory: true,
+        size: 0,
+        modified: new Date()
+      }]);
     }
     setIsLoading(false);
   };
