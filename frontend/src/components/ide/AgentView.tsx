@@ -22,12 +22,7 @@ export function AgentView() {
   ]);
   const [input, setInput] = useState('');
 
-  const quickActions = [
-    { icon: Code, label: 'Full Adder', prompt: 'Generate a full adder' },
-    { icon: HelpCircle, label: 'Half Adder', prompt: 'Generate a half adder' },
-    { icon: Zap, label: 'Multiplexer', prompt: 'Generate a 4-to-1 multiplexer' },
-    { icon: Lightbulb, label: 'Counter', prompt: 'Generate an 8-bit counter' },
-  ];
+
 
   const handleSend = async () => {
     if (!input.trim()) return;
@@ -75,9 +70,7 @@ export function AgentView() {
     }
   };
 
-  const handleQuickAction = (prompt: string) => {
-    setInput(prompt);
-  };
+
 
   return (
     <div className="flex flex-col h-full">
@@ -86,21 +79,7 @@ export function AgentView() {
         <span>Verilog Generator</span>
       </div>
 
-      <div className="px-4 py-2">
-        <div className="text-xs text-muted-foreground mb-2">Quick Actions</div>
-        <div className="grid grid-cols-2 gap-2">
-          {quickActions.map((action) => (
-            <button
-              key={action.label}
-              onClick={() => handleQuickAction(action.prompt)}
-              className="flex flex-col items-center gap-1 p-2 rounded hover:bg-pinnacle-hover text-xs"
-            >
-              <action.icon size={16} className="text-primary" />
-              <span className="text-muted-foreground">{action.label}</span>
-            </button>
-          ))}
-        </div>
-      </div>
+
 
       <ScrollArea className="flex-1 px-4 pinnacle-scrollbar">
         <div className="space-y-4 py-2">
