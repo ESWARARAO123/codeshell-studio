@@ -16,20 +16,15 @@ export function AgentView() {
     {
       id: '1',
       type: 'agent',
-      content: 'Hello! I\'m Pinnacle Agent, your AI coding assistant. How can I help you today?',
+      content: 'Hello! I\'m the Verilog Code Generator. I can create Verilog modules for digital components like full adders, multiplexers, counters, and more using Ollama.',
       timestamp: new Date()
     }
   ]);
   const [input, setInput] = useState('');
 
-  const quickActions = [
-    { icon: Code, label: 'Generate Code', prompt: 'Generate a React component' },
-    { icon: HelpCircle, label: 'Explain Code', prompt: 'Explain this code to me' },
-    { icon: Zap, label: 'Fix Bugs', prompt: 'Help me fix bugs in my code' },
-    { icon: Lightbulb, label: 'Optimize', prompt: 'Optimize my code performance' },
-  ];
 
-  const handleSend = () => {
+
+  const handleSend = async () => {
     if (!input.trim()) return;
 
     const userMessage: Message = {
@@ -39,43 +34,52 @@ export function AgentView() {
       timestamp: new Date()
     };
 
-    const agentResponse: Message = {
-      id: (Date.now() + 1).toString(),
-      type: 'agent',
-      content: `I understand you want help with: "${input}". I'm here to assist you with code generation, debugging, and optimization. What specific task would you like me to help with?`,
-      timestamp: new Date()
-    };
-
-    setMessages(prev => [...prev, userMessage, agentResponse]);
+    setMessages(prev => [...prev, userMessage]);
     setInput('');
+
+    try {
+      const response = await fetch('http://localhost:3001/api/agent/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message: input,
+          context: {}
+        })
+      });
+
+      const data = await response.json();
+      
+      const agentResponse: Message = {
+        id: (Date.now() + 1).toString(),
+        type: 'agent',
+        content: data.response,
+        timestamp: new Date()
+      };
+
+      setMessages(prev => [...prev, agentResponse]);
+    } catch (error) {
+      const errorResponse: Message = {
+        id: (Date.now() + 1).toString(),
+        type: 'agent',
+        content: '❌ **Connection Error**: Failed to connect to backend\n\n💡 **Please check:**\n- Backend server is running on port 3001\n- Ollama is running with qwen2.5-coder:3b model\n- Network connection is available',
+        timestamp: new Date()
+      };
+      setMessages(prev => [...prev, errorResponse]);
+    }
   };
 
-  const handleQuickAction = (prompt: string) => {
-    setInput(prompt);
-  };
+
 
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center gap-2 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground border-b border-border">
         <Bot size={16} className="text-primary" />
-        <span>Pinnacle Agent</span>
+        <span>Verilog Generator</span>
       </div>
 
-      <div className="px-4 py-2">
-        <div className="text-xs text-muted-foreground mb-2">Quick Actions</div>
-        <div className="grid grid-cols-2 gap-2">
-          {quickActions.map((action) => (
-            <button
-              key={action.label}
-              onClick={() => handleQuickAction(action.prompt)}
-              className="flex flex-col items-center gap-1 p-2 rounded hover:bg-pinnacle-hover text-xs"
-            >
-              <action.icon size={16} className="text-primary" />
-              <span className="text-muted-foreground">{action.label}</span>
-            </button>
-          ))}
-        </div>
-      </div>
+
 
       <ScrollArea className="flex-1 px-4 pinnacle-scrollbar">
         <div className="space-y-4 py-2">
@@ -97,7 +101,68 @@ export function AgentView() {
                     <span className="text-xs font-medium">Pinnacle Agent</span>
                   </div>
                 )}
-                <div>{message.content}</div>
+                {message.type === 'agent' ? (
+                  <div className="space-y-2">
+                    {(() => {
+                      const content = message.content;
+                      const parts = [];
+                      let currentIndex = 0;
+                      
+                      // Find all code blocks (module...endmodule)
+                      const moduleRegex = /module[\s\S]*?endmodule/gi;
+                      let match;
+                      
+                      while ((match = moduleRegex.exec(content)) !== null) {
+                        // Add text before code block
+                        if (match.index > currentIndex) {
+                          const preText = content.substring(currentIndex, match.index).trim();
+                          if (preText) {
+                            parts.push(
+                              <div key={`pre-${match.index}`} className="whitespace-pre-wrap text-sm">
+                                {preText}
+                              </div>
+                            );
+                          }
+                        }
+                        
+                        // Add code block
+                        parts.push(
+                          <div key={`code-${match.index}`} className="bg-gray-900 text-green-400 p-3 rounded font-mono text-sm whitespace-pre-wrap overflow-x-auto">
+                            {match[0]}
+                          </div>
+                        );
+                        
+                        currentIndex = match.index + match[0].length;
+                      }
+                      
+                      // Add remaining text after last code block
+                      if (currentIndex < content.length) {
+                        const postText = content.substring(currentIndex).trim();
+                        if (postText) {
+                          parts.push(
+                            <div key={`post-${currentIndex}`} className="whitespace-pre-wrap text-sm">
+                              {postText}
+                            </div>
+                          );
+                        }
+                      }
+                      
+                      // If no code blocks found, display as normal text
+                      if (parts.length === 0) {
+                        parts.push(
+                          <div key="normal" className="whitespace-pre-wrap text-sm">
+                            {content}
+                          </div>
+                        );
+                      }
+                      
+                      return parts;
+                    })()
+                    }
+                  </div>
+                ) : (
+                  <div className="whitespace-pre-wrap font-mono text-sm">{message.content}</div>
+                )}
               </div>
             </div>
           ))}

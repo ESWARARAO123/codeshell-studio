@@ -136,7 +136,7 @@ app.post('/api/agent/generate', async (req, res) => {
     const { PinnacleAgent } = require('./agent/pinnacleAgent');
     
     const agent = new PinnacleAgent();
-    const response = await agent.generateCode(prompt, language);
+    const response = await agent.processRequest(prompt);
     
     res.json(response);
   } catch (error) {
