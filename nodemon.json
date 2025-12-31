@@ -1,0 +1,8 @@
+{
+  "watch": ["*.js", "agent/*.js", "rag/*.js"],
+  "ignore": ["node_modules", "frontend", "*.log", "*.md"],
+  "delay": 2000,
+  "env": {
+    "NODE_ENV": "development"
+  }
+}

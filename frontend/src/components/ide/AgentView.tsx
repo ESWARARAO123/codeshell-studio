@@ -21,6 +21,24 @@ export function AgentView() {
     }
   ]);
   const [input, setInput] = useState('');
+  const [ragStatus, setRagStatus] = useState<{agent_ready: boolean, rag_ready: boolean} | null>(null);
+
+  // Check RAG status on component mount
+  React.useEffect(() => {
+    const checkStatus = async () => {
+      try {
+        const response = await fetch('http://localhost:3010/api/agent/status');
+        const status = await response.json();
+        setRagStatus(status);
+      } catch (error) {
+        console.log('Could not check RAG status');
+      }
+    };
+    
+    checkStatus();
+    const interval = setInterval(checkStatus, 5000); // Check every 5 seconds
+    return () => clearInterval(interval);
+  }, []);
 
 
 
@@ -38,7 +56,7 @@ export function AgentView() {
     setInput('');
 
     try {
-      const response = await fetch('http://localhost:3001/api/agent/chat', {
+      const response = await fetch('http://localhost:3010/api/agent/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -63,7 +81,7 @@ export function AgentView() {
       const errorResponse: Message = {
         id: (Date.now() + 1).toString(),
         type: 'agent',
-        content: '❌ **Connection Error**: Failed to connect to backend\n\n💡 **Please check:**\n- Backend server is running on port 3001\n- Ollama is running with qwen2.5-coder:3b model\n- Network connection is available',
+        content: '❌ **Connection Error**: Failed to connect to backend\n\n💡 **Please check:**\n- Backend server is running on port 3010\n- Ollama is running with qwen2.5-coder:3b model\n- Network connection is available',
         timestamp: new Date()
       };
       setMessages(prev => [...prev, errorResponse]);
@@ -77,6 +95,16 @@ export function AgentView() {
       <div className="flex items-center gap-2 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground border-b border-border">
         <Bot size={16} className="text-primary" />
         <span>Verilog Generator</span>
+        {ragStatus && (
+          <div className="ml-auto flex items-center gap-1">
+            <div className={`w-2 h-2 rounded-full ${
+              ragStatus.rag_ready ? 'bg-green-500' : 'bg-yellow-500'
+            }`} />
+            <span className="text-xs">
+              {ragStatus.rag_ready ? 'RAG Ready' : 'Basic Mode'}
+            </span>
+          </div>
+        )}
       </div>
 
 

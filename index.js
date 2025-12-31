@@ -4,12 +4,33 @@ const path = require('path');
 const cors = require('cors');
 
 const app = express();
-const PORT = 3001;
+const PORT = 3010;
 
 app.use(cors());
 app.use(express.json());
 
 const workspaceRoot = process.cwd();
+
+// Initialize RAG system on server startup
+let globalAgent = null;
+
+async function initializeAgent() {
+  try {
+    console.log('🚀 Starting Pinnacle Agent with RAG...');
+    const { PinnacleAgent } = require('./agent/pinnacleAgent');
+    globalAgent = new PinnacleAgent();
+    
+    // Wait a bit for RAG to initialize
+    setTimeout(() => {
+      console.log('🎆 Pinnacle Agent ready!');
+    }, 2000);
+  } catch (error) {
+    console.error('❌ Failed to initialize agent:', error);
+  }
+}
+
+// Initialize agent on startup
+initializeAgent();
 
 // Get file tree
 app.get('/api/files', async (req, res) => {
@@ -115,17 +136,32 @@ app.delete('/api/file', async (req, res) => {
   }
 });
 
+// Agent status endpoint
+app.get('/api/agent/status', (req, res) => {
+  const status = {
+    agent_ready: globalAgent !== null,
+    rag_ready: globalAgent ? globalAgent.ragReady : false,
+    timestamp: new Date().toISOString()
+  };
+  res.json(status);
+});
+
 // Agent endpoints
 app.post('/api/agent/chat', async (req, res) => {
   try {
     const { message, context } = req.body;
-    const { PinnacleAgent } = require('./agent/pinnacleAgent');
     
-    const agent = new PinnacleAgent();
+    // Use global agent if available, otherwise create new one
+    let agent = globalAgent;
+    if (!agent) {
+      const { PinnacleAgent } = require('./agent/pinnacleAgent');
+      agent = new PinnacleAgent();
+    }
+    
     const response = await agent.processRequest(message, context);
-    
     res.json(response);
   } catch (error) {
+    console.error('Agent chat error:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -133,17 +169,31 @@ app.post('/api/agent/chat', async (req, res) => {
 app.post('/api/agent/generate', async (req, res) => {
   try {
     const { prompt, language } = req.body;
-    const { PinnacleAgent } = require('./agent/pinnacleAgent');
     
-    const agent = new PinnacleAgent();
+    // Use global agent if available, otherwise create new one
+    let agent = globalAgent;
+    if (!agent) {
+      const { PinnacleAgent } = require('./agent/pinnacleAgent');
+      agent = new PinnacleAgent();
+    }
+    
     const response = await agent.processRequest(prompt);
-    
     res.json(response);
   } catch (error) {
+    console.error('Agent generate error:', error);
     res.status(500).json({ error: error.message });
   }
 });
 
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
+}).on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.log(`Port ${PORT} is busy, trying ${PORT + 1}...`);
+    app.listen(PORT + 1, () => {
+      console.log(`Server running on http://localhost:${PORT + 1}`);
+    });
+  } else {
+    console.error('Server error:', err);
+  }
 });

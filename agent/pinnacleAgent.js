@@ -1,6 +1,7 @@
-// Verilog Code Generation Agent with Ollama Qwen2.5-Coder
+// Verilog Code Generation Agent with Ollama Qwen2.5-Coder + RAG
 
 const axios = require('axios');
+const { RAGService } = require('../rag/ragService');
 
 class PinnacleAgent {
   constructor() {
@@ -8,10 +9,38 @@ class PinnacleAgent {
     this.version = "1.0.0";
     this.ollamaUrl = "http://localhost:11434/api/generate";
     this.model = "qwen2.5-coder:3b";
+    this.ragService = new RAGService();
+    this.ragReady = false;
+    this.initializeRAG();
+  }
+
+  async initializeRAG() {
+    try {
+      console.log('🚀 Initializing RAG system...');
+      await this.ragService.initialize();
+      await this.ragService.indexContext();
+      this.ragReady = true;
+      console.log('✅ RAG system ready!');
+    } catch (error) {
+      console.log('⚠️  RAG initialization failed, using fallback mode:', error.message);
+      this.ragReady = false;
+    }
   }
 
   async processRequest(message, context = {}) {
-    return await this.generateResponse(message, context);
+    // Use RAG if ready, otherwise fallback to basic generation
+    if (this.ragReady) {
+      try {
+        console.log('🎯 Using RAG for query:', message.substring(0, 50) + '...');
+        return await this.ragService.generateWithContext(message);
+      } catch (error) {
+        console.log('⚠️  RAG failed, using fallback:', error.message);
+        return await this.generateResponse(message, context);
+      }
+    } else {
+      console.log('🔧 Using basic generation (RAG not ready)');
+      return await this.generateResponse(message, context);
+    }
   }
 
 
@@ -46,7 +75,7 @@ class PinnacleAgent {
       console.error('Ollama error:', error);
       if (error.code === 'ECONNREFUSED') {
         return {
-          response: `❌ **Connection Error**: Failed to connect to backend 💡 **Please check:** - Backend server is running on port 3001 - Ollama is running with ${this.model} model - Network connection is available`,
+          response: `❌ **Connection Error**: Failed to connect to backend 💡 **Please check:** - Backend server is running on port 3010 - Ollama is running with ${this.model} model - Network connection is available`,
           error: error.message
         };
       }
