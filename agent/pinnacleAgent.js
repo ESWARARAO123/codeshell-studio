@@ -32,7 +32,7 @@ class PinnacleAgent {
     if (this.ragReady) {
       try {
         console.log('🎯 Using RAG for query:', message.substring(0, 50) + '...');
-        return await this.ragService.generateWithContext(message);
+        return await this.ragService.generateWithContext(message, context);
       } catch (error) {
         console.log('⚠️  RAG failed, using fallback:', error.message);
         return await this.generateResponse(message, context);

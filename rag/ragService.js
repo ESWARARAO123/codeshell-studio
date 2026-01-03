@@ -36,21 +36,57 @@ class RAGService {
     return context;
   }
 
-  async generateWithContext(userQuery) {
+  async generateWithContext(userQuery, editorContext = {}) {
     try {
       await this.initialize();
       
       const relevantContext = await this.getRelevantContext(userQuery);
       
-      const systemPrompt = `You are a Verilog RTL design expert. Use the provided context to generate accurate, synthesizable Verilog code. Follow RTL design principles strictly.
+      // Check if user wants file operations
+      const fileAction = this.detectFileAction(userQuery);
+      
+      // Build context with open files
+      let contextInfo = '';
+      if (editorContext.openFiles && editorContext.openFiles.length > 0) {
+        contextInfo += '\n\nOPEN FILES IN EDITOR:\n';
+        editorContext.openFiles.forEach(file => {
+          contextInfo += `\n--- ${file.filename} ---\n${file.content}\n`;
+        });
+      }
+      
+      if (editorContext.activeFile) {
+        contextInfo += `\n\nCURRENTLY ACTIVE FILE: ${editorContext.activeFile.filename}\n`;
+      }
+      
+      const systemPrompt = `You are a Verilog RTL design expert and file management assistant. Use the provided context to generate accurate, synthesizable Verilog code. Follow RTL design principles strictly.
 
-${relevantContext}
+${relevantContext}${contextInfo}
 
-Generate responses based on the context above. If generating Verilog code, ensure it follows the patterns and rules from the context.`;
+Generate responses based on the context above. If generating Verilog code, ensure it follows the patterns and rules from the context.
 
-      const fullPrompt = `${systemPrompt}
+If the user asks to modify existing open files, respond with a JSON object in this format:
+{
+  "action": "modify_open_files",
+  "modifications": [
+    {
+      "filepath": "path/to/file",
+      "content": "new file content"
+    }
+  ],
+  "message": "explanation message"
+}
 
-User Query: ${userQuery}`;
+If the user asks to create new files, respond with:
+{
+  "action": "create_file",
+  "filename": "filename.v",
+  "content": "file content here",
+  "message": "explanation message"
+}
+
+For regular responses, just provide the text response.`;
+
+      const fullPrompt = `${systemPrompt}\n\nUser Query: ${userQuery}`;
 
       const response = await axios.post(this.ollamaUrl, {
         model: this.model,
@@ -64,14 +100,44 @@ User Query: ${userQuery}`;
         timeout: 120000
       });
 
-      return {
+      const result = {
         response: response.data.response,
         context_used: relevantContext,
         generated: true
       };
+
+      // Check if response contains file action
+      if (fileAction && this.isFileActionResponse(response.data.response)) {
+        result.fileAction = this.parseFileAction(response.data.response);
+      }
+
+      return result;
     } catch (error) {
       console.error('RAG generation error:', error);
       throw error;
+    }
+  }
+
+  detectFileAction(query) {
+    const fileKeywords = ['create file', 'save to file', 'write to file', 'generate file', 'save as', 'create', 'write'];
+    const lowerQuery = query.toLowerCase();
+    return fileKeywords.some(keyword => lowerQuery.includes(keyword));
+  }
+
+  isFileActionResponse(response) {
+    try {
+      const parsed = JSON.parse(response);
+      return parsed.action && parsed.filename && parsed.content;
+    } catch {
+      return false;
+    }
+  }
+
+  parseFileAction(response) {
+    try {
+      return JSON.parse(response);
+    } catch {
+      return null;
     }
   }
 }

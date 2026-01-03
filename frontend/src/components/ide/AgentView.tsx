@@ -3,6 +3,7 @@ import { Bot, Send, Plus, ChevronDown, X } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { useEditor } from '@/context/EditorContext';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -47,9 +48,11 @@ export function AgentView() {
   const [activeSessionId, setActiveSessionId] = useState<string>(currentSessionId);
   const [input, setInput] = useState('');
   const [ragStatus, setRagStatus] = useState<{agent_ready: boolean, rag_ready: boolean} | null>(null);
+  const { openTabs, activeTabId, updateTabContent } = useEditor();
 
   const activeSession = chatSessions.find(session => session.id === activeSessionId);
   const messages = activeSession?.messages || [];
+  const activeTab = openTabs.find(tab => tab.id === activeTabId);
 
   // Sync with global sessions
   useEffect(() => {
@@ -81,6 +84,27 @@ export function AgentView() {
   }, []);
 
 
+
+  const getOpenFilesContext = () => {
+    return openTabs.map(tab => ({
+      filename: tab.fileName,
+      filepath: tab.filePath,
+      content: tab.content,
+      language: tab.language,
+      isModified: tab.isModified
+    }));
+  };
+
+  const getActiveFileContext = () => {
+    if (!activeTab) return null;
+    return {
+      filename: activeTab.fileName,
+      filepath: activeTab.filePath,
+      content: activeTab.content,
+      language: activeTab.language,
+      isModified: activeTab.isModified
+    };
+  };
 
   const handleNewChat = () => {
     const newSessionId = Date.now().toString();
@@ -160,7 +184,10 @@ export function AgentView() {
         },
         body: JSON.stringify({
           message: input,
-          context: {}
+          context: {
+            openFiles: getOpenFilesContext(),
+            activeFile: getActiveFileContext()
+          }
         })
       });
 
@@ -179,6 +206,21 @@ export function AgentView() {
           ? { ...session, messages: [...session.messages, agentResponse] }
           : session
       ));
+      
+      // If a file was created, refresh the file explorer
+      if (data.filePath) {
+        console.log('File created/modified:', data.filePath);
+      }
+      
+      // If the response contains file modifications for open tabs
+      if (data.fileModifications) {
+        data.fileModifications.forEach((mod: any) => {
+          const tab = openTabs.find(t => t.filePath === mod.filepath);
+          if (tab) {
+            updateTabContent(tab.id, mod.content);
+          }
+        });
+      }
     } catch (error) {
       const errorResponse: Message = {
         id: (Date.now() + 1).toString(),
