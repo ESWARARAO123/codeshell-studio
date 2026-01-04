@@ -196,7 +196,11 @@ app.post('/api/agent/chat', async (req, res) => {
       try {
         const { action, filename, content, modifications } = response.fileAction;
         
-        if (action === 'modify_open_files' && modifications) {
+        if (action === 'modify_active_file') {
+          // For active file modifications, let frontend handle confirmation
+          // Don't modify the file here, just pass the action to frontend
+          response.response = `I want to modify ${filename}. Please confirm the changes.`;
+        } else if (action === 'modify_open_files' && modifications) {
           // Handle modifications to open files
           const fileModifications = [];
           for (const mod of modifications) {
@@ -216,6 +220,25 @@ app.post('/api/agent/chat', async (req, res) => {
       } catch (fileError) {
         console.error('File operation error:', fileError);
         response.response += `\n\n❌ File operation failed: ${fileError.message}`;
+      }
+    }
+    
+    // Try to parse JSON response if it looks like JSON
+    if (response.response && response.response.trim().startsWith('{')) {
+      try {
+        const parsedAction = JSON.parse(response.response);
+        if (parsedAction.action === 'modify_active_file') {
+          response.fileAction = parsedAction;
+          response.response = `I want to modify ${parsedAction.filename}. Please confirm the changes.`;
+        } else if (parsedAction.action === 'integrate_code') {
+          response.integrateAction = {
+            code: parsedAction.code,
+            targetFile: parsedAction.targetFile
+          };
+          response.response = `${parsedAction.message}\n\n\`\`\`verilog\n${parsedAction.code}\n\`\`\``;
+        }
+      } catch (e) {
+        // If parsing fails, keep original response
       }
     }
     

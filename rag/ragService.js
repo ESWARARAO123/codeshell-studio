@@ -58,13 +58,33 @@ class RAGService {
         contextInfo += `\n\nCURRENTLY ACTIVE FILE: ${editorContext.activeFile.filename}\n`;
       }
       
+      if (editorContext.selectedFile) {
+        contextInfo += `\n\nSELECTED FILE FOR INTEGRATION: ${editorContext.selectedFile}\n`;
+      }
+      
       const systemPrompt = `You are a Verilog RTL design expert and file management assistant. Use the provided context to generate accurate, synthesizable Verilog code. Follow RTL design principles strictly.
 
 ${relevantContext}${contextInfo}
 
 Generate responses based on the context above. If generating Verilog code, ensure it follows the patterns and rules from the context.
 
-If the user asks to modify existing open files, respond with a JSON object in this format:
+IMPORTANT: When the user asks to generate, create, write, or modify Verilog code and there is a currently active file, you MUST respond with a JSON object in this format:
+{
+  "action": "modify_active_file",
+  "filename": "current_filename",
+  "content": "complete modified file content",
+  "message": "Brief explanation of changes made"
+}
+
+If the user mentions a specific file with @ symbol and asks for code related to that file, respond with:
+{
+  "action": "integrate_code",
+  "targetFile": "selected_file_path",
+  "code": "generated code here",
+  "message": "explanation of the code"
+}
+
+If the user asks to modify other open files, respond with:
 {
   "action": "modify_open_files",
   "modifications": [
@@ -84,7 +104,7 @@ If the user asks to create new files, respond with:
   "message": "explanation message"
 }
 
-For regular responses, just provide the text response.`;
+For regular responses without file operations, just provide the text response.`;
 
       const fullPrompt = `${systemPrompt}\n\nUser Query: ${userQuery}`;
 
@@ -107,7 +127,7 @@ For regular responses, just provide the text response.`;
       };
 
       // Check if response contains file action
-      if (fileAction && this.isFileActionResponse(response.data.response)) {
+      if (this.isFileActionResponse(response.data.response)) {
         result.fileAction = this.parseFileAction(response.data.response);
       }
 
@@ -119,7 +139,7 @@ For regular responses, just provide the text response.`;
   }
 
   detectFileAction(query) {
-    const fileKeywords = ['create file', 'save to file', 'write to file', 'generate file', 'save as', 'create', 'write'];
+    const fileKeywords = ['create file', 'save to file', 'write to file', 'generate file', 'save as', 'create', 'write', 'modify', 'change', 'update', 'add', 'fix', 'edit', 'generate', 'make', 'build'];
     const lowerQuery = query.toLowerCase();
     return fileKeywords.some(keyword => lowerQuery.includes(keyword));
   }
