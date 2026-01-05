@@ -8,6 +8,7 @@ import {
   MenubarShortcut,
   MenubarTrigger,
 } from '@/components/ui/menubar';
+import { useEditor } from '@/context/EditorContext';
 
 const menuItems = [
   {
@@ -17,7 +18,7 @@ const menuItems = [
       { label: 'New Window', shortcut: '⇧⌘N' },
       { type: 'separator' },
       { label: 'Open File...', shortcut: '⌘O' },
-      { label: 'Open Folder...', shortcut: '⌘K ⌘O' },
+      { label: 'Open Folder...', shortcut: '⌘K ⌘O', action: 'openFolder' },
       { type: 'separator' },
       { label: 'Save', shortcut: '⌘S' },
       { label: 'Save As...', shortcut: '⇧⌘S' },
@@ -89,6 +90,40 @@ const menuItems = [
 ];
 
 export function MenuBar() {
+  const { openWorkspace } = useEditor();
+
+  const handleOpenFolder = async () => {
+    try {
+      // For web browsers, we'll use a folder selection dialog
+      // First, get available root directories from the backend
+      const response = await fetch('http://localhost:3010/api/files');
+      const rootDirs = await response.json();
+      
+      // Create a simple selection dialog
+      const folderOptions = rootDirs.map((dir, index) => `${index + 1}. ${dir.name} (${dir.path})`).join('\n');
+      const selection = prompt(`Select a folder to open:\n\n${folderOptions}\n\nEnter the number (1-${rootDirs.length}) or type a custom path:`);
+      
+      if (selection) {
+        const selectionNum = parseInt(selection);
+        if (selectionNum >= 1 && selectionNum <= rootDirs.length) {
+          // User selected a numbered option
+          await openWorkspace(rootDirs[selectionNum - 1].path);
+        } else {
+          // User entered a custom path
+          await openWorkspace(selection);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to open folder:', error);
+      alert('Failed to open folder. Please check the path and try again.');
+    }
+  };
+
+  const handleMenuClick = (action?: string) => {
+    if (action === 'openFolder') {
+      handleOpenFolder();
+    }
+  };
   return (
     <div className="h-8 bg-pinnacle-titlebar flex items-center px-2 border-b border-border">
       <Menubar className="border-none bg-transparent h-full">
@@ -105,6 +140,7 @@ export function MenuBar() {
                   <MenubarItem
                     key={item.label}
                     className="text-sm text-foreground hover:bg-pinnacle-selection cursor-pointer focus:bg-pinnacle-selection focus:text-foreground"
+                    onClick={() => handleMenuClick(item.action)}
                   >
                     {item.label}
                     {item.shortcut && (

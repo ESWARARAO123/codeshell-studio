@@ -190,6 +190,58 @@ app.post('/api/agent/chat', async (req, res) => {
     }
     
     const response = await agent.processRequest(message, context);
+    
+    // Handle file operations if present
+    if (response.fileAction) {
+      try {
+        const { action, filename, content, modifications } = response.fileAction;
+        
+        if (action === 'modify_active_file') {
+          // For active file modifications, let frontend handle confirmation
+          // Don't modify the file here, just pass the action to frontend
+          response.response = `I want to modify ${filename}. Please confirm the changes.`;
+        } else if (action === 'modify_open_files' && modifications) {
+          // Handle modifications to open files
+          const fileModifications = [];
+          for (const mod of modifications) {
+            await fs.writeFile(mod.filepath, mod.content, 'utf8');
+            fileModifications.push(mod);
+          }
+          response.fileModifications = fileModifications;
+          response.response = `✅ Modified ${modifications.length} file(s)\n\n${response.fileAction.message || ''}`;
+        } else if (action === 'create_file' && filename && content) {
+          // Handle new file creation
+          const workspacePath = process.cwd();
+          const filePath = path.join(workspacePath, filename);
+          await fs.writeFile(filePath, content, 'utf8');
+          response.response = `✅ File created: ${filename}\n\n${response.fileAction.message || ''}`;
+          response.filePath = filePath;
+        }
+      } catch (fileError) {
+        console.error('File operation error:', fileError);
+        response.response += `\n\n❌ File operation failed: ${fileError.message}`;
+      }
+    }
+    
+    // Try to parse JSON response if it looks like JSON
+    if (response.response && response.response.trim().startsWith('{')) {
+      try {
+        const parsedAction = JSON.parse(response.response);
+        if (parsedAction.action === 'modify_active_file') {
+          response.fileAction = parsedAction;
+          response.response = `I want to modify ${parsedAction.filename}. Please confirm the changes.`;
+        } else if (parsedAction.action === 'integrate_code') {
+          response.integrateAction = {
+            code: parsedAction.code,
+            targetFile: parsedAction.targetFile
+          };
+          response.response = `${parsedAction.message}\n\n\`\`\`verilog\n${parsedAction.code}\n\`\`\``;
+        }
+      } catch (e) {
+        // If parsing fails, keep original response
+      }
+    }
+    
     res.json(response);
   } catch (error) {
     console.error('Agent chat error:', error);

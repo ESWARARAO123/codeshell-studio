@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { Bot, Send, Plus, ChevronDown, X } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Bot, Send, Plus, ChevronDown, X, FileText } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { useEditor } from '@/context/EditorContext';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,6 +23,11 @@ interface Message {
   type: 'user' | 'agent';
   content: string;
   timestamp: Date;
+  fileAction?: any;
+  integrateAction?: {
+    code: string;
+    targetFile: string;
+  };
 }
 
 // Global chat sessions storage
@@ -47,9 +53,15 @@ export function AgentView() {
   const [activeSessionId, setActiveSessionId] = useState<string>(currentSessionId);
   const [input, setInput] = useState('');
   const [ragStatus, setRagStatus] = useState<{agent_ready: boolean, rag_ready: boolean} | null>(null);
+  const [showFileSuggestions, setShowFileSuggestions] = useState(false);
+  const [fileSuggestions, setFileSuggestions] = useState<any[]>([]);
+  const [selectedFile, setSelectedFile] = useState<string>('');
+  const inputRef = useRef<HTMLInputElement>(null);
+  const { openTabs, activeTabId, updateTabContent, openFile, saveFile } = useEditor();
 
   const activeSession = chatSessions.find(session => session.id === activeSessionId);
   const messages = activeSession?.messages || [];
+  const activeTab = openTabs.find(tab => tab.id === activeTabId);
 
   // Sync with global sessions
   useEffect(() => {
@@ -81,6 +93,27 @@ export function AgentView() {
   }, []);
 
 
+
+  const getOpenFilesContext = () => {
+    return openTabs.map(tab => ({
+      filename: tab.fileName,
+      filepath: tab.filePath,
+      content: tab.content,
+      language: tab.language,
+      isModified: tab.isModified
+    }));
+  };
+
+  const getActiveFileContext = () => {
+    if (!activeTab) return null;
+    return {
+      filename: activeTab.fileName,
+      filepath: activeTab.filePath,
+      content: activeTab.content,
+      language: activeTab.language,
+      isModified: activeTab.isModified
+    };
+  };
 
   const handleNewChat = () => {
     const newSessionId = Date.now().toString();
@@ -116,16 +149,120 @@ export function AgentView() {
     setActiveSessionId(sessionId);
   };
 
-  const updateSessionTitle = (sessionId: string, firstUserMessage: string) => {
-    const title = firstUserMessage.length > 30 
-      ? firstUserMessage.substring(0, 30) + '...' 
-      : firstUserMessage;
-    
+  const updateSessionTitle = (sessionId: string, title: string) => {
     setChatSessions(prev => prev.map(session => 
       session.id === sessionId 
-        ? { ...session, title }
+        ? { ...session, title: title.slice(0, 50) + (title.length > 50 ? '...' : '') }
         : session
     ));
+  };
+
+  const handleApplyChanges = (messageId: string, fileAction: any) => {
+    if (activeTab && fileAction.content) {
+      updateTabContent(activeTab.id, fileAction.content);
+      
+      // Update the message to show changes applied
+      setChatSessions(prev => prev.map(session => 
+        session.id === activeSessionId 
+          ? { 
+              ...session, 
+              messages: session.messages.map(msg => 
+                msg.id === messageId 
+                  ? { ...msg, content: `✅ Changes applied to ${fileAction.filename}`, fileAction: undefined }
+                  : msg
+              )
+            }
+          : session
+      ));
+    }
+  };
+
+  const handleRejectChanges = (messageId: string) => {
+    // Update the message to show changes rejected
+    setChatSessions(prev => prev.map(session => 
+      session.id === activeSessionId 
+        ? { 
+            ...session, 
+            messages: session.messages.map(msg => 
+              msg.id === messageId 
+                ? { ...msg, content: `❌ Changes cancelled. The file was not modified.`, fileAction: undefined }
+                : msg
+            )
+          }
+        : session
+    ));
+  };
+
+  const handleIntegrateCode = async (messageId: string, integrateAction: any) => {
+    try {
+      const response = await fetch('http://localhost:3010/api/file', {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      
+      if (response.ok) {
+        const { content } = await response.json();
+        const updatedContent = content + '\n\n' + integrateAction.code;
+        
+        await fetch('http://localhost:3010/api/file', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            path: integrateAction.targetFile,
+            content: updatedContent
+          })
+        });
+        
+        // Update message to show integration success
+        setChatSessions(prev => prev.map(session => 
+          session.id === activeSessionId 
+            ? { 
+                ...session, 
+                messages: session.messages.map(msg => 
+                  msg.id === messageId 
+                    ? { ...msg, content: `✅ Code integrated into ${integrateAction.targetFile}`, integrateAction: undefined }
+                    : msg
+                )
+              }
+            : session
+        ));
+        
+        // Open the file if not already open
+        if (!openTabs.find(tab => tab.filePath === integrateAction.targetFile)) {
+          openFile(integrateAction.targetFile);
+        }
+      }
+    } catch (error) {
+      console.error('Integration failed:', error);
+    }
+  };
+
+  const fetchFileSuggestions = async () => {
+    try {
+      const response = await fetch('http://localhost:3010/api/files?path=' + encodeURIComponent(process.cwd()));
+      const files = await response.json();
+      setFileSuggestions(files.filter((f: any) => !f.isDirectory));
+    } catch (error) {
+      console.error('Failed to fetch files:', error);
+    }
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setInput(value);
+    
+    if (value.endsWith('@')) {
+      setShowFileSuggestions(true);
+      fetchFileSuggestions();
+    } else {
+      setShowFileSuggestions(false);
+    }
+  };
+
+  const handleFileSelect = (file: any) => {
+    setSelectedFile(file.path);
+    setInput(input.slice(0, -1) + `@${file.name} `);
+    setShowFileSuggestions(false);
   };
 
   const handleSend = async () => {
@@ -160,12 +297,89 @@ export function AgentView() {
         },
         body: JSON.stringify({
           message: input,
-          context: {}
+          context: {
+            openFiles: getOpenFilesContext(),
+            activeFile: getActiveFileContext(),
+            selectedFile: selectedFile
+          }
         })
       });
 
       const data = await response.json();
       
+      // Try to parse JSON response if it looks like JSON
+      let parsedAction = null;
+      if (data.response && data.response.trim().startsWith('{')) {
+        try {
+          // Decode HTML entities before parsing
+          const decodedResponse = data.response
+            .replace(/&quot;/g, '"')
+            .replace(/&#39;/g, "'")
+            .replace(/&amp;/g, '&');
+          parsedAction = JSON.parse(decodedResponse);
+        } catch (e) {
+          // If parsing fails, treat as regular response
+        }
+      }
+      
+      // Check if agent wants to modify the active file (from parsed JSON)
+      if (parsedAction && parsedAction.action === 'modify_active_file') {
+        const agentResponse: Message = {
+          id: (Date.now() + 1).toString(),
+          type: 'agent',
+          content: `I want to modify ${parsedAction.filename}:\n\n${parsedAction.message}`,
+          timestamp: new Date(),
+          fileAction: parsedAction
+        };
+        
+        setChatSessions(prev => prev.map(session => 
+          session.id === activeSessionId 
+            ? { ...session, messages: [...session.messages, agentResponse] }
+            : session
+        ));
+        
+        return;
+      }
+      
+      // Check if agent response contains code for integration
+      if (data.integrateAction) {
+        const agentResponse: Message = {
+          id: (Date.now() + 1).toString(),
+          type: 'agent',
+          content: data.response,
+          timestamp: new Date(),
+          integrateAction: data.integrateAction
+        };
+        
+        setChatSessions(prev => prev.map(session => 
+          session.id === activeSessionId 
+            ? { ...session, messages: [...session.messages, agentResponse] }
+            : session
+        ));
+        
+        return;
+      }
+      
+      // Check if agent wants to modify the active file (from backend response)
+      if (data.fileAction) {
+        const agentResponse: Message = {
+          id: (Date.now() + 1).toString(),
+          type: 'agent',
+          content: `I want to modify ${data.fileAction.filename || 'the active file'}:\n\n${data.fileAction.message || 'Apply changes?'}`,
+          timestamp: new Date(),
+          fileAction: data.fileAction
+        };
+        
+        setChatSessions(prev => prev.map(session => 
+          session.id === activeSessionId 
+            ? { ...session, messages: [...session.messages, agentResponse] }
+            : session
+        ));
+        
+        return;
+      }
+      
+      // Regular agent response
       const agentResponse: Message = {
         id: (Date.now() + 1).toString(),
         type: 'agent',
@@ -179,6 +393,21 @@ export function AgentView() {
           ? { ...session, messages: [...session.messages, agentResponse] }
           : session
       ));
+      
+      // If a file was created, refresh the file explorer
+      if (data.filePath) {
+        console.log('File created/modified:', data.filePath);
+      }
+      
+      // If the response contains file modifications for open tabs
+      if (data.fileModifications) {
+        data.fileModifications.forEach((mod: any) => {
+          const tab = openTabs.find(t => t.filePath === mod.filepath);
+          if (tab) {
+            updateTabContent(tab.id, mod.content);
+          }
+        });
+      }
     } catch (error) {
       const errorResponse: Message = {
         id: (Date.now() + 1).toString(),
@@ -273,62 +502,104 @@ export function AgentView() {
                 )}
                 {message.type === 'agent' ? (
                   <div className="space-y-2">
-                    {(() => {
-                      const content = message.content;
-                      const parts = [];
-                      let currentIndex = 0;
-                      
-                      // Find all code blocks (module...endmodule)
-                      const moduleRegex = /module[\s\S]*?endmodule/gi;
-                      let match;
-                      
-                      while ((match = moduleRegex.exec(content)) !== null) {
-                        // Add text before code block
-                        if (match.index > currentIndex) {
-                          const preText = content.substring(currentIndex, match.index).trim();
-                          if (preText) {
+                    {message.fileAction ? (
+                      <div className="space-y-3">
+                        <div className="whitespace-pre-wrap text-sm">{message.content}</div>
+                        <div className="flex gap-2">
+                          <Button
+                            onClick={() => handleApplyChanges(message.id, message.fileAction)}
+                            size="sm"
+                            className="bg-green-600 hover:bg-green-700 text-white"
+                          >
+                            Apply Changes
+                          </Button>
+                          <Button
+                            onClick={() => handleRejectChanges(message.id)}
+                            size="sm"
+                            variant="outline"
+                            className="border-red-500 text-red-500 hover:bg-red-50"
+                          >
+                            Reject
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      (() => {
+                        const content = message.content;
+                        const parts = [];
+                        let currentIndex = 0;
+                        
+                        // Find all code blocks (module...endmodule)
+                        const moduleRegex = /module[\s\S]*?endmodule/gi;
+                        let match;
+                        
+                        while ((match = moduleRegex.exec(content)) !== null) {
+                          // Add text before code block
+                          if (match.index > currentIndex) {
+                            const preText = content.substring(currentIndex, match.index).trim();
+                            if (preText) {
+                              parts.push(
+                                <div key={`pre-${match.index}`} className="whitespace-pre-wrap text-sm">
+                                  {preText}
+                                </div>
+                              );
+                            }
+                          }
+                          
+                          // Add code block with apply button
+                          const codeContent = match[0];
+                          parts.push(
+                            <div key={`code-${match.index}`} className="relative">
+                              <div className="bg-gray-900 text-green-400 p-3 rounded font-mono text-sm whitespace-pre-wrap overflow-x-auto">
+                                {codeContent}
+                              </div>
+                              <Button
+                                onClick={async () => {
+                                  if (activeTab) {
+                                    console.log('Applying code to file:', activeTab.fileName);
+                                    console.log('Code content:', codeContent);
+                                    updateTabContent(activeTab.id, codeContent);
+                                    await saveFile(activeTab.id);
+                                    console.log('File saved to disk');
+                                  } else {
+                                    alert('No file is currently open. Please open a file first.');
+                                  }
+                                }}
+                                size="sm"
+                                className="absolute top-1 right-1 bg-green-600 hover:bg-green-700 text-white text-xs px-1 py-0.5 h-5"
+                              >
+                                Apply
+                              </Button>
+                            </div>
+                          );
+                          
+                          currentIndex = match.index + match[0].length;
+                        }
+                        
+                        // Add remaining text after last code block
+                        if (currentIndex < content.length) {
+                          const postText = content.substring(currentIndex).trim();
+                          if (postText) {
                             parts.push(
-                              <div key={`pre-${match.index}`} className="whitespace-pre-wrap text-sm">
-                                {preText}
+                              <div key={`post-${currentIndex}`} className="whitespace-pre-wrap text-sm">
+                                {postText}
                               </div>
                             );
                           }
                         }
                         
-                        // Add code block
-                        parts.push(
-                          <div key={`code-${match.index}`} className="bg-gray-900 text-green-400 p-3 rounded font-mono text-sm whitespace-pre-wrap overflow-x-auto">
-                            {match[0]}
-                          </div>
-                        );
-                        
-                        currentIndex = match.index + match[0].length;
-                      }
-                      
-                      // Add remaining text after last code block
-                      if (currentIndex < content.length) {
-                        const postText = content.substring(currentIndex).trim();
-                        if (postText) {
+                        // If no code blocks found, display as normal text
+                        if (parts.length === 0) {
                           parts.push(
-                            <div key={`post-${currentIndex}`} className="whitespace-pre-wrap text-sm">
-                              {postText}
+                            <div key="normal" className="whitespace-pre-wrap text-sm">
+                              {content}
                             </div>
                           );
                         }
-                      }
-                      
-                      // If no code blocks found, display as normal text
-                      if (parts.length === 0) {
-                        parts.push(
-                          <div key="normal" className="whitespace-pre-wrap text-sm">
-                            {content}
-                          </div>
-                        );
-                      }
-                      
-                      return parts;
-                    })()
-                    }
+                        
+                        return parts;
+                      })()
+                    )}
                   </div>
                 ) : (
                   <div className="whitespace-pre-wrap font-mono text-sm">{message.content}</div>
@@ -340,17 +611,36 @@ export function AgentView() {
       </ScrollArea>
 
       <div className="p-4 border-t border-border">
-        <div className="flex gap-2">
-          <Input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask Pinnacle Agent anything..."
-            className="flex-1 bg-pinnacle-editor border-border"
-            onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-          />
-          <Button onClick={handleSend} size="sm" className="px-3">
-            <Send size={14} />
-          </Button>
+        <div className="relative">
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Input
+                ref={inputRef}
+                value={input}
+                onChange={handleInputChange}
+                placeholder="Ask Pinnacle Agent anything... (type @ to select files)"
+                className="flex-1 bg-pinnacle-editor border-border"
+                onKeyDown={(e) => e.key === 'Enter' && !showFileSuggestions && handleSend()}
+              />
+              {showFileSuggestions && fileSuggestions.length > 0 && (
+                <div className="absolute top-full left-0 right-0 bg-pinnacle-sidebar border border-border rounded-md mt-1 max-h-40 overflow-y-auto z-50">
+                  {fileSuggestions.map((file, index) => (
+                    <div
+                      key={index}
+                      onClick={() => handleFileSelect(file)}
+                      className="flex items-center gap-2 px-3 py-2 hover:bg-pinnacle-hover cursor-pointer text-sm"
+                    >
+                      <FileText size={14} className="text-primary" />
+                      <span>{file.name}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <Button onClick={handleSend} size="sm" className="px-3">
+              <Send size={14} />
+            </Button>
+          </div>
         </div>
       </div>
     </div>
