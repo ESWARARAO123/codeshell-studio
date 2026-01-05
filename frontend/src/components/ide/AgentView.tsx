@@ -57,7 +57,7 @@ export function AgentView() {
   const [fileSuggestions, setFileSuggestions] = useState<any[]>([]);
   const [selectedFile, setSelectedFile] = useState<string>('');
   const inputRef = useRef<HTMLInputElement>(null);
-  const { openTabs, activeTabId, updateTabContent, openFile } = useEditor();
+  const { openTabs, activeTabId, updateTabContent, openFile, saveFile } = useEditor();
 
   const activeSession = chatSessions.find(session => session.id === activeSessionId);
   const messages = activeSession?.messages || [];
@@ -554,12 +554,13 @@ export function AgentView() {
                                 {codeContent}
                               </div>
                               <Button
-                                onClick={() => {
+                                onClick={async () => {
                                   if (activeTab) {
                                     console.log('Applying code to file:', activeTab.fileName);
                                     console.log('Code content:', codeContent);
                                     updateTabContent(activeTab.id, codeContent);
-                                    console.log('Content updated');
+                                    await saveFile(activeTab.id);
+                                    console.log('File saved to disk');
                                   } else {
                                     alert('No file is currently open. Please open a file first.');
                                   }
