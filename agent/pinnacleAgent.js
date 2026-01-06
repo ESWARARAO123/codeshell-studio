@@ -1,14 +1,17 @@
-// Verilog Code Generation Agent with Ollama Qwen2.5-Coder + RAG
-
-const axios = require('axios');
+require('dotenv').config();
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { RAGService } = require('../rag/ragService');
 
 class PinnacleAgent {
   constructor() {
     this.name = "Verilog Code Generator";
     this.version = "1.0.0";
-    this.ollamaUrl = "http://localhost:11434/api/generate";
-    this.model = "qwen2.5-coder:3b";
+    this.apiKey = process.env.GEMINI_API_KEY;
+    if (!this.apiKey) {
+      throw new Error('GEMINI_API_KEY environment variable is required');
+    }
+    this.genAI = new GoogleGenerativeAI(this.apiKey);
+    this.model = this.genAI.getGenerativeModel({ model: "gemini-pro" });
     this.ragService = new RAGService();
     this.ragReady = false;
     this.initializeRAG();
@@ -43,45 +46,46 @@ class PinnacleAgent {
     }
   }
 
-
-
   async generateResponse(userRequest, context = {}) {
     try {
-      console.log('Sending request to Ollama:', { model: this.model, prompt: userRequest });
+      console.log('Sending request to Gemini:', { prompt: userRequest.substring(0, 100) + '...' });
       
-      const response = await axios.post(this.ollamaUrl, {
-        model: this.model,
-        prompt: userRequest,
-        stream: false,
-        options: {
+      const result = await this.model.generateContent({
+        contents: [{
+          role: 'user',
+          parts: [{ text: userRequest }]
+        }],
+        generationConfig: {
           temperature: 0.1,
-          top_p: 0.9
+          topP: 0.9,
+          maxOutputTokens: 2048
         }
-      }, {
-        timeout: 120000
       });
       
-      console.log('Ollama response:', response.data);
+      const response = await result.response;
+      const text = response.text();
       
-      if (!response.data || !response.data.response) {
-        throw new Error('Invalid response from Ollama');
+      console.log('Gemini response received:', text.substring(0, 100) + '...');
+      
+      if (!text) {
+        throw new Error('Empty response from Gemini');
       }
       
       return {
-        response: response.data.response,
+        response: text,
         generated: true
       };
     } catch (error) {
-      console.error('Ollama error:', error);
-      if (error.code === 'ECONNREFUSED') {
+      console.error('Gemini error:', error);
+      if (error.message.includes('API_KEY')) {
         return {
-          response: `❌ **Connection Error**: Failed to connect to backend 💡 **Please check:** - Backend server is running on port 3010 - Ollama is running with ${this.model} model - Network connection is available`,
+          response: `❌ **API Key Error**: Invalid or missing Gemini API key. Please check your GEMINI_API_KEY environment variable.`,
           error: error.message
         };
       }
-      if (error.response && error.response.status === 404) {
+      if (error.message.includes('quota')) {
         return {
-          response: `❌ **Model Error**: Model '${this.model}' not found. Please ensure the model is installed.`,
+          response: `❌ **Quota Error**: Gemini API quota exceeded. Please check your usage limits.`,
           error: error.message
         };
       }
@@ -91,10 +95,6 @@ class PinnacleAgent {
       };
     }
   }
-
-
-
-
 }
 
 module.exports = { PinnacleAgent };

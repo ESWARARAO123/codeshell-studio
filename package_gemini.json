@@ -1,0 +1,30 @@
+{
+  "name": "codeshell-studio",
+  "version": "1.0.0",
+  "description": "Pinnacle IDE - Verilog Code Generator with RAG using Google Gemini",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.2.1",
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  },
+  "keywords": [
+    "verilog",
+    "rtl",
+    "ide",
+    "ai",
+    "gemini",
+    "rag"
+  ],
+  "author": "Your Name",
+  "license": "MIT"
+}

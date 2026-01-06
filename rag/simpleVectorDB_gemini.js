@@ -1,10 +1,14 @@
+require('dotenv').config();
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const fs = require('fs').promises;
 
 class SimpleVectorDB {
   constructor() {
     this.documents = [];
-    this.apiKey = process.env.GEMINI_API_KEY || "YOUR_GEMINI_API_KEY_HERE";
+    this.apiKey = process.env.GEMINI_API_KEY;
+    if (!this.apiKey) {
+      throw new Error('GEMINI_API_KEY environment variable is required');
+    }
     this.genAI = new GoogleGenerativeAI(this.apiKey);
     this.embeddingModel = this.genAI.getGenerativeModel({ model: "embedding-001" });
   }
@@ -15,19 +19,16 @@ class SimpleVectorDB {
       return result.embedding.values;
     } catch (error) {
       console.error('Failed to generate embedding:', error);
-      // Fallback to simple text-based similarity if embedding fails
       return this.simpleTextEmbedding(text);
     }
   }
 
-  // Simple fallback embedding using character frequencies
   simpleTextEmbedding(text) {
     const embedding = new Array(100).fill(0);
     for (let i = 0; i < text.length; i++) {
       const charCode = text.charCodeAt(i) % 100;
       embedding[charCode] += 1;
     }
-    // Normalize
     const magnitude = Math.sqrt(embedding.reduce((sum, val) => sum + val * val, 0));
     return embedding.map(val => magnitude > 0 ? val / magnitude : 0);
   }

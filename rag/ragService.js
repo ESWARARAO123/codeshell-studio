@@ -1,11 +1,16 @@
-const { SimpleVectorDB } = require('./simpleVectorDB');
-const axios = require('axios');
+require('dotenv').config();
+const { SimpleVectorDB } = require('./simpleVectorDB_gemini');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 class RAGService {
   constructor() {
     this.vectorDB = new SimpleVectorDB();
-    this.ollamaUrl = 'http://localhost:11434/api/generate';
-    this.model = 'qwen2.5-coder:3b';
+    this.apiKey = process.env.GEMINI_API_KEY;
+    if (!this.apiKey) {
+      throw new Error('GEMINI_API_KEY environment variable is required');
+    }
+    this.genAI = new GoogleGenerativeAI(this.apiKey);
+    this.model = this.genAI.getGenerativeModel({ model: "gemini-pro" });
     this.initialized = false;
   }
 
@@ -108,30 +113,33 @@ For regular responses without file operations, just provide the text response.`;
 
       const fullPrompt = `${systemPrompt}\n\nUser Query: ${userQuery}`;
 
-      const response = await axios.post(this.ollamaUrl, {
-        model: this.model,
-        prompt: fullPrompt,
-        stream: false,
-        options: {
+      const result = await this.model.generateContent({
+        contents: [{
+          role: 'user',
+          parts: [{ text: fullPrompt }]
+        }],
+        generationConfig: {
           temperature: 0.1,
-          top_p: 0.9
+          topP: 0.9,
+          maxOutputTokens: 2048
         }
-      }, {
-        timeout: 120000
       });
 
-      const result = {
-        response: response.data.response,
+      const response = await result.response;
+      const responseText = response.text();
+
+      const resultObj = {
+        response: responseText,
         context_used: relevantContext,
         generated: true
       };
 
       // Check if response contains file action
-      if (this.isFileActionResponse(response.data.response)) {
-        result.fileAction = this.parseFileAction(response.data.response);
+      if (this.isFileActionResponse(responseText)) {
+        resultObj.fileAction = this.parseFileAction(responseText);
       }
 
-      return result;
+      return resultObj;
     } catch (error) {
       console.error('RAG generation error:', error);
       throw error;
