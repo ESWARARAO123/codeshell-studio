@@ -11,7 +11,7 @@ class PinnacleAgent {
       throw new Error('GEMINI_API_KEY environment variable is required');
     }
     this.genAI = new GoogleGenerativeAI(this.apiKey);
-    this.model = this.genAI.getGenerativeModel({ model: "gemini-pro" });
+    this.model = this.genAI.getGenerativeModel({ model: "gemma-3-12b" });
     this.ragService = new RAGService();
     this.ragReady = false;
     this.initializeRAG();

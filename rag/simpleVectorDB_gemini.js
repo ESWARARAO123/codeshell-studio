@@ -1,22 +1,20 @@
-require('dotenv').config();
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+const axios = require('axios');
 const fs = require('fs').promises;
 
 class SimpleVectorDB {
   constructor() {
     this.documents = [];
-    this.apiKey = process.env.GEMINI_API_KEY;
-    if (!this.apiKey) {
-      throw new Error('GEMINI_API_KEY environment variable is required');
-    }
-    this.genAI = new GoogleGenerativeAI(this.apiKey);
-    this.embeddingModel = this.genAI.getGenerativeModel({ model: "embedding-001" });
+    this.embeddingModel = 'nomic-embed-text:latest';
+    this.ollamaUrl = 'http://localhost:11434/api/embeddings';
   }
 
   async generateEmbedding(text) {
     try {
-      const result = await this.embeddingModel.embedContent(text);
-      return result.embedding.values;
+      const response = await axios.post(this.ollamaUrl, {
+        model: this.embeddingModel,
+        prompt: text
+      });
+      return response.data.embedding;
     } catch (error) {
       console.error('Failed to generate embedding:', error);
       return this.simpleTextEmbedding(text);
