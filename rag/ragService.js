@@ -45,6 +45,13 @@ class RAGService {
     try {
       await this.initialize();
       
+      console.log('📋 RAG Context received:', {
+        hasOpenFiles: !!(editorContext.openFiles && editorContext.openFiles.length > 0),
+        openFilesCount: editorContext.openFiles ? editorContext.openFiles.length : 0,
+        hasActiveFile: !!editorContext.activeFile,
+        activeFileName: editorContext.activeFile ? editorContext.activeFile.filename : 'none'
+      });
+      
       const relevantContext = await this.getRelevantContext(userQuery);
       
       // Check if user wants file operations
@@ -57,23 +64,54 @@ class RAGService {
         editorContext.openFiles.forEach(file => {
           contextInfo += `\n--- ${file.filename} ---\n${file.content}\n`;
         });
+        console.log(`✅ Added ${editorContext.openFiles.length} open files to context`);
       }
       
       if (editorContext.activeFile) {
         contextInfo += `\n\nCURRENTLY ACTIVE FILE: ${editorContext.activeFile.filename}\n`;
+        contextInfo += `FILE CONTENT:\n${editorContext.activeFile.content}\n`;
+        console.log(`✅ Added active file ${editorContext.activeFile.filename} to context (${editorContext.activeFile.content.length} chars)`);
       }
       
       if (editorContext.selectedFile) {
         contextInfo += `\n\nSELECTED FILE FOR INTEGRATION: ${editorContext.selectedFile}\n`;
       }
       
-      const systemPrompt = `You are a Verilog RTL design expert and file management assistant. Use the provided context to generate accurate, synthesizable Verilog code. Follow RTL design principles strictly.
+      // Handle @file references in the query
+      const fileReferences = this.extractFileReferences(userQuery);
+      console.log('Extracted file references:', fileReferences);
+      if (fileReferences.length > 0) {
+        contextInfo += '\n\nREFERENCED FILES:\n';
+        for (const fileName of fileReferences) {
+          try {
+            console.log(`Attempting to read file: ${fileName}`);
+            const fileContent = await this.readReferencedFile(fileName, editorContext);
+            console.log(`Successfully read file ${fileName}, content length: ${fileContent.length}`);
+            contextInfo += `\n--- @${fileName} ---\n${fileContent}\n`;
+          } catch (error) {
+            console.log(`Failed to read file ${fileName}:`, error.message);
+            contextInfo += `\n--- @${fileName} ---\nError: Could not read file ${fileName}\n`;
+          }
+        }
+      }
+      
+      const systemPrompt = `You are a Verilog RTL design expert with FULL ACCESS to the user's current workspace and open files.
 
 ${relevantContext}${contextInfo}
 
-Generate responses based on the context above. If generating Verilog code, ensure it follows the patterns and rules from the context.
+IMPORTANT - YOU HAVE DIRECT ACCESS TO:
+- All open files in the editor (shown above in OPEN FILES section)
+- The currently active file being edited (shown above in CURRENTLY ACTIVE FILE section)
+- Any files referenced with @filename (shown above in REFERENCED FILES section)
 
-IMPORTANT: When the user asks to generate, create, write, or modify Verilog code and there is a currently active file, you MUST respond with a JSON object in this format:
+CRITICAL INSTRUCTIONS:
+- You can READ and analyze ALL file content shown above
+- NEVER ask users to "paste code" or "provide file content" - you already have it
+- When users ask about "this file" or "current file", refer to the CURRENTLY ACTIVE FILE
+- Provide specific analysis, suggestions, and improvements based on the actual code you can see
+- If you see issues in the code, point them out specifically with line references
+
+When the user asks to modify the current/active file, respond with JSON:
 {
   "action": "modify_active_file",
   "filename": "current_filename",
@@ -81,35 +119,7 @@ IMPORTANT: When the user asks to generate, create, write, or modify Verilog code
   "message": "Brief explanation of changes made"
 }
 
-If the user mentions a specific file with @ symbol and asks for code related to that file, respond with:
-{
-  "action": "integrate_code",
-  "targetFile": "selected_file_path",
-  "code": "generated code here",
-  "message": "explanation of the code"
-}
-
-If the user asks to modify other open files, respond with:
-{
-  "action": "modify_open_files",
-  "modifications": [
-    {
-      "filepath": "path/to/file",
-      "content": "new file content"
-    }
-  ],
-  "message": "explanation message"
-}
-
-If the user asks to create new files, respond with:
-{
-  "action": "create_file",
-  "filename": "filename.v",
-  "content": "file content here",
-  "message": "explanation message"
-}
-
-For regular responses without file operations, just provide the text response.`;
+For analysis and suggestions, provide detailed responses based on the file content you have access to.`;
 
       const fullPrompt = `${systemPrompt}\n\nUser Query: ${userQuery}`;
 
@@ -161,6 +171,63 @@ For regular responses without file operations, just provide the text response.`;
     }
   }
 
+  extractFileReferences(query) {
+    const fileRegex = /@([\w\.-]+)/g;
+    const matches = [];
+    let match;
+    while ((match = fileRegex.exec(query)) !== null) {
+      matches.push(match[1]);
+    }
+    return matches;
+  }
+
+  async readReferencedFile(fileName, editorContext) {
+    const fs = require('fs').promises;
+    const path = require('path');
+    
+    console.log(`Reading file: ${fileName}`);
+    console.log(`Current working directory: ${process.cwd()}`);
+    
+    // First check if file is already open in editor
+    if (editorContext.openFiles) {
+      console.log(`Checking ${editorContext.openFiles.length} open files`);
+      const openFile = editorContext.openFiles.find(file => 
+        file.filename === fileName || file.filepath.endsWith(fileName)
+      );
+      if (openFile) {
+        console.log(`Found file in open files: ${openFile.filename}`);
+        return openFile.content;
+      }
+    }
+    
+    // Try to read from current working directory
+    const currentDir = process.cwd();
+    const filePath = path.join(currentDir, fileName);
+    console.log(`Trying to read from: ${filePath}`);
+    
+    try {
+      const content = await fs.readFile(filePath, 'utf-8');
+      console.log(`Successfully read file from: ${filePath}`);
+      return content;
+    } catch (error) {
+      console.log(`Failed to read ${filePath}: ${error.message}`);
+      // Try common file extensions if not found
+      const extensions = ['.v', '.sv', '.vhd', '.vhdl', '.txt', '.md'];
+      for (const ext of extensions) {
+        try {
+          const extPath = path.join(currentDir, fileName + ext);
+          console.log(`Trying with extension: ${extPath}`);
+          const content = await fs.readFile(extPath, 'utf-8');
+          console.log(`Successfully read file from: ${extPath}`);
+          return content;
+        } catch (e) {
+          console.log(`Failed to read ${extPath}: ${e.message}`);
+          continue;
+        }
+      }
+      throw new Error(`File ${fileName} not found in ${currentDir}`);
+    }
+  }
   parseFileAction(response) {
     try {
       return JSON.parse(response);

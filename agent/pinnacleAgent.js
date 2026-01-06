@@ -11,7 +11,7 @@ class PinnacleAgent {
       throw new Error('GEMINI_API_KEY environment variable is required');
     }
     this.genAI = new GoogleGenerativeAI(this.apiKey);
-    this.model = this.genAI.getGenerativeModel({ model: "gemma-3-12b" });
+    this.model = this.genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
     this.ragService = new RAGService();
     this.ragReady = false;
     this.initializeRAG();
@@ -31,6 +31,15 @@ class PinnacleAgent {
   }
 
   async processRequest(message, context = {}) {
+    // Log the context to debug
+    console.log('📋 Context received:', {
+      hasOpenFiles: !!(context.openFiles && context.openFiles.length > 0),
+      openFilesCount: context.openFiles ? context.openFiles.length : 0,
+      hasActiveFile: !!context.activeFile,
+      activeFileName: context.activeFile ? context.activeFile.filename : 'none',
+      activeFileContentLength: context.activeFile ? context.activeFile.content.length : 0
+    });
+    
     // Use RAG if ready, otherwise fallback to basic generation
     if (this.ragReady) {
       try {
@@ -48,12 +57,18 @@ class PinnacleAgent {
 
   async generateResponse(userRequest, context = {}) {
     try {
-      console.log('Sending request to Gemini:', { prompt: userRequest.substring(0, 100) + '...' });
+      // Build context for fallback mode
+      let contextPrompt = userRequest;
+      if (context.activeFile) {
+        contextPrompt = `ACTIVE FILE: ${context.activeFile.filename}\n\nFILE CONTENT:\n${context.activeFile.content}\n\nUSER QUERY: ${userRequest}`;
+      }
+      
+      console.log('Sending request to Gemini:', { prompt: contextPrompt.substring(0, 100) + '...' });
       
       const result = await this.model.generateContent({
         contents: [{
           role: 'user',
-          parts: [{ text: userRequest }]
+          parts: [{ text: contextPrompt }]
         }],
         generationConfig: {
           temperature: 0.1,
